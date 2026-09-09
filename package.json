@@ -16,6 +16,7 @@
     "build:api": "wrangler deploy --config wrangler.api.jsonc --dry-run --outdir api-dist",
     "db:local": "wrangler d1 migrations apply elsewhere-db --local --config wrangler.api.jsonc",
     "typecheck": "tsc --noEmit",
+    "types:api": "wrangler types server/worker-configuration.d.ts --config wrangler.api.production.jsonc --env-interface WorkerBindings --include-runtime false --strict-vars false",
     "test": "vitest run",
     "test:providers": "vitest run --config vitest.workers.config.ts",
     "test:integration": "node scripts/integration.mjs",

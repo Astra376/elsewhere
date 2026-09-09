@@ -12,6 +12,7 @@ import {
   ownProfile,
   publicPeer,
   requireMember,
+  validProxySecret,
   type RowProfile,
 } from './data';
 import {
@@ -32,6 +33,7 @@ import { pushRoute } from './push';
 import { moderationRoute, supportRoute } from './moderation';
 import type { Env } from './env';
 export { ChatRoom, Matchmaker } from './realtime';
+export { BillingCoordinator } from './billing-coordinator';
 
 const identifier = z.string().min(1).max(100);
 async function roomRequest(
@@ -68,7 +70,10 @@ export default {
         env.API_PROXY_KEY &&
         path !== '/api/socket' &&
         path !== '/api/billing/webhook' &&
-        request.headers.get('X-Elsewhere-Proxy') !== env.API_PROXY_KEY
+        !(await validProxySecret(
+          request.headers.get('X-Elsewhere-Proxy'),
+          env.API_PROXY_KEY,
+        ))
       )
         throw new ApiError(403, 'Use Elsewhere to access this service.');
       const origin = request.headers.get('Origin');
@@ -331,6 +336,17 @@ export default {
             409,
             'Cancel your subscription in billing before deleting your account.',
           );
+        if (profile.stripeCustomerId || env.STRIPE_SECRET_KEY) {
+          const billingCheck = await env.BILLING.get(
+            env.BILLING.idFromName(profile.id),
+          ).fetch(
+            new Request('https://billing/close', {
+              method: 'POST',
+              headers: { 'X-Profile-Id': profile.id },
+            }),
+          );
+          if (!billingCheck.ok) return billingCheck;
+        }
         const owned = await env.DB.prepare(
           'SELECT objectKey FROM media WHERE ownerId=?',
         )

@@ -34,6 +34,10 @@ Run `npm ci`, `npm run check`, `npm run test:integration`, and the relevant brow
 
 Frontend releases use Sites: build, push the committed source with a short-lived credential, package the built Worker/assets with the Sites packaging helper, save a version, and deploy that version. Preserve the owner-only access policy until launch dependencies are resolved. A backend proxy key is required on both sides; an incorrect key should fail closed.
 
+The API's `v2` Durable Object migration adds `BillingCoordinator`, with one object per profile. Keep the earlier `v1` migration in the configuration. Regenerate binding declarations with `npm run types:api` after resource changes. The generated file contains binding types, never secret values.
+
+Checkout stores the attempt and exact Stripe parameters before making the external request. Multiple tabs reuse an open checkout; changing plans expires the earlier checkout. A lost response is recovered by attempt metadata or the same Stripe idempotency key, including after a Durable Object restart. Account deletion expires unpaid checkout and closes the coordinator to prevent a concurrent new purchase. Subscription checks query Stripe before creating checkout, so delayed webhooks do not permit a second purchase. Live Stripe test-mode checkout, SCA, webhooks, taxes, refunds, and portal configuration still need validation before enabling payments.
+
 Cloudflare has a repository connection for `Astra376/elsewhere`. A dedicated build token and trigger still need to be configured before native automatic builds run. Build command: `npm ci && npm run typecheck && npm test`; deploy command: `npm run db:remote && npm run deploy:api`; root directory: `/`; production branch: `main`. Do not reuse another project's named deployment token without verifying its scope and ownership. GitHub's manual API workflow can alternatively use a repository `CLOUDFLARE_API_TOKEN` secret.
 
 ## Observe and recover
@@ -53,6 +57,8 @@ Storage growth, inactive guest cleanup, media orphan cleanup, and report retenti
 ## Test boundaries
 
 The provider test runner uses a compatibility date of `2026-08-22` because its bundled Workerd currently supports that date. The actual API integration runner and production Worker use `2026-09-01`. Provider responses are simulated; human text/game tests use real local Workers, D1, R2, Durable Objects, and browser connections. The UI suite covers Chromium/Edge at five sizes. Real Safari/iOS installation/push, Android background behavior, restrictive-network calls, group calls, accessibility audits, load/soak tests, and real Stripe/email/Google accounts remain explicit release checks.
+
+Matching regression tests include 201 incompatible people ahead of a compatible candidate, mutual gender filters, blocks in both directions, standing restrictions, expired presence, paid priority, and interest deadlines for both human and AI matches. Eligibility is filtered in SQL before selecting a candidate. The single matching coordinator still needs a realistic load/soak benchmark before claiming any concurrency capacity.
 
 The preview runs without advertising scripts. Before ad activation, obtain publisher approval, select compliant public placements, add the appropriate consent platform for the launch regions, enforce Plus's ad-free entitlement before script loading, and measure layout stability. Do not put ads in private chat transcripts or claim guaranteed search rankings.
 

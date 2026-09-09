@@ -38,6 +38,7 @@
         "name": "MATCHMAKER",
         "class_name": "Matchmaker",
       },
+      { "name": "BILLING", "class_name": "BillingCoordinator" },
     ],
   },
   "migrations": [
@@ -45,6 +46,7 @@
       "tag": "v1",
       "new_sqlite_classes": ["ChatRoom", "Matchmaker"],
     },
+    { "tag": "v2", "new_sqlite_classes": ["BillingCoordinator"] },
   ],
   "triggers": {
     "crons": ["17 * * * *"],

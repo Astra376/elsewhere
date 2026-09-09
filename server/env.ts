@@ -1,10 +1,13 @@
-export interface Env {
-  DB: D1Database;
-  FILES: R2Bucket;
-  CHAT_ROOMS: DurableObjectNamespace;
-  MATCHMAKER: DurableObjectNamespace;
-  APP_ORIGIN: string;
-  API_ORIGIN: string;
+export interface Env extends Pick<
+  WorkerBindings,
+  | 'DB'
+  | 'FILES'
+  | 'CHAT_ROOMS'
+  | 'MATCHMAKER'
+  | 'BILLING'
+  | 'APP_ORIGIN'
+  | 'API_ORIGIN'
+> {
   AUTH_SECRET: string;
   API_PROXY_KEY?: string;
   OPENROUTER_API_KEY?: string;

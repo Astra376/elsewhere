@@ -16,7 +16,7 @@ The browser talks to a same-origin server proxy. The separate API Worker owns au
 - Persisted messages, unique message IDs, retry controls, WebSocket reconnect, catch-up polling, typing indicators, and explicit conversation ending.
 - Friends, requests, direct messages, notifications, plan-limited history, avatar/banner/profile settings, and privacy preferences.
 - Basic: 13 total interests, 15 history entries, images, matching priority, gender filtering, optional badge. Plus: 20 total interests, 25 history entries, images/videos, higher priority, optional badge, priority support, and an ad-free entitlement.
-- Stripe Checkout, billing portal, verified/replay-safe subscription webhooks. Display prices are USD 5/10 monthly or 48/96 annually; configure matching Stripe prices before enabling checkout.
+- Stripe Checkout with durable retry recovery and duplicate-purchase protection, billing portal, and verified/replay-safe subscription webhooks. Display prices are USD 5/10 monthly or 48/96 annually; configure matching Stripe prices before enabling checkout.
 - Relayed one-to-one WebRTC calls; Cloudflare RealtimeKit group-call integration; no recording or transcription enabled by the app.
 - Tic-tac-toe and Connect Four with server-authoritative moves, turns, and revisions.
 - Clearly labeled, opt-in OpenRouter AI text companions. Human-only is the default.

@@ -593,14 +593,20 @@ export class Matchmaker extends DurableObject<Env> {
       )
         .bind(profile.id)
         .first<QueueRow>();
+      if (profile.standing === 'suspended' || profile.standing === 'limited') {
+        await this.env.DB.prepare(
+          'DELETE FROM matchQueue WHERE profileId=? AND chatId IS NULL',
+        )
+          .bind(profile.id)
+          .run();
+        throw new ApiError(
+          403,
+          'Matching is unavailable for your account standing.',
+        );
+      }
       if (body.action === 'join') {
         if (!profile.acceptedAt)
           throw new ApiError(403, 'Accept the terms before matching.');
-        if (profile.standing === 'suspended' || profile.standing === 'limited')
-          throw new ApiError(
-            403,
-            'Matching is unavailable for your account standing.',
-          );
         if (own?.chatId) return json({ status: 'matched', chatId: own.chatId });
         const options = matchSchema.parse(body.options);
         if (options.interests.length > plans[profile.plan].interests)
@@ -644,65 +650,61 @@ export class Matchmaker extends DurableObject<Env> {
         .bind(now, profile.id)
         .run();
       const options = matchSchema.parse(JSON.parse(own.options));
-      const candidates = await this.env.DB.prepare(
-        'SELECT q.*,p.plan FROM matchQueue q JOIN profiles p ON p.id=q.profileId WHERE q.mode=? AND q.profileId<>? AND q.chatId IS NULL AND q.heartbeatAt>? AND p.standing NOT IN (?,?) ORDER BY CASE p.plan WHEN ? THEN 2 WHEN ? THEN 1 ELSE 0 END DESC,q.joinedAt ASC LIMIT 200',
-      )
-        .bind(
-          own.mode,
-          profile.id,
-          now - 20000,
-          'suspended',
-          'limited',
-          'plus',
-          'basic',
-        )
-        .all<QueueRow>();
-      let candidate: QueueRow | undefined;
-      if (options.partnerType !== 'ai')
-        for (const entry of candidates.results) {
-          const otherOptions = matchSchema.parse(JSON.parse(entry.options));
-          if (otherOptions.partnerType === 'ai') continue;
-          const other = await getProfile(this.env, entry.profileId);
-          if (
-            (options.genderFilter !== 'any' &&
-              options.genderFilter !== other.gender) ||
-            (otherOptions.genderFilter !== 'any' &&
-              otherOptions.genderFilter !== profile.gender)
-          )
-            continue;
-          if (await blocked(this.env, profile.id, other.id)) continue;
-          const same = sharedInterests(
-            options.interests,
-            otherOptions.interests,
-          );
-          if (
-            (interestsRequired(options, own.joinedAt, now) ||
-              interestsRequired(otherOptions, entry.joinedAt, now)) &&
-            !same.length
-          )
-            continue;
-          candidate = entry;
-          break;
-        }
+      // Filter eligibility before limiting the result. A fixed prefix of the
+      // queue can indefinitely hide compatible people with uncommon interests.
+      const candidate =
+        options.partnerType === 'ai'
+          ? null
+          : await this.env.DB.prepare(`
+        SELECT q.* FROM matchQueue q JOIN profiles p ON p.id=q.profileId
+        WHERE q.mode=? AND q.profileId<>? AND q.chatId IS NULL AND q.heartbeatAt>?
+          AND p.standing NOT IN ('suspended','limited')
+          AND json_extract(q.options,'$.partnerType')<>'ai'
+          AND (?='any' OR p.gender=?)
+          AND COALESCE(json_extract(q.options,'$.genderFilter'),'any') IN ('any',?)
+          AND NOT EXISTS (SELECT 1 FROM blocks b WHERE
+            (b.blocker=? AND b.blocked=p.id) OR (b.blocker=p.id AND b.blocked=?))
+          AND ((?=0 AND (COALESCE(json_extract(q.options,'$.interestMatch'),0)=0 OR
+            (json_extract(q.options,'$.waitSeconds')>0 AND ?-q.joinedAt>=json_extract(q.options,'$.waitSeconds')*1000)))
+            OR EXISTS (SELECT 1 FROM json_each(q.options,'$.interests') theirs
+              JOIN json_each(?) mine ON mine.value=theirs.value))
+        ORDER BY CASE p.plan WHEN 'plus' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC,q.joinedAt ASC
+        LIMIT 1
+      `)
+              .bind(
+                own.mode,
+                profile.id,
+                now - 20000,
+                options.genderFilter,
+                options.genderFilter,
+                profile.gender,
+                profile.id,
+                profile.id,
+                Number(interestsRequired(options, own.joinedAt, now)),
+                now,
+                JSON.stringify(options.interests),
+              )
+              .first<QueueRow>();
+      const persona = [...aiPersonas].sort(
+        (a, b) =>
+          sharedInterests([...b.interests], options.interests).length -
+          sharedInterests([...a.interests], options.interests).length,
+      )[0];
       const aiAllowed =
         options.mode === 'text' &&
         this.env.OPENROUTER_API_KEY &&
         (options.partnerType === 'ai' ||
-          (options.partnerType === 'anyone' &&
-            now - own.joinedAt >= 10000 &&
-            !interestsRequired(options, own.joinedAt, now)));
+          (options.partnerType === 'anyone' && now - own.joinedAt >= 10000)) &&
+        (!interestsRequired(options, own.joinedAt, now) ||
+          sharedInterests([...persona.interests], options.interests).length >
+            0);
       if (!candidate && !aiAllowed)
         return json({
           status: 'waiting',
           joinedAt: own.joinedAt,
           interestOnly: interestsRequired(options, own.joinedAt, now),
         });
-      const chatId = crypto.randomUUID(),
-        persona = [...aiPersonas].sort(
-          (a, b) =>
-            sharedInterests([...b.interests], options.interests).length -
-            sharedInterests([...a.interests], options.interests).length,
-        )[0];
+      const chatId = crypto.randomUUID();
       const statements = [
         this.env.DB.prepare(
           'INSERT INTO chats (id,kind,mode,title,aiPersona,createdAt) VALUES (?,?,?,?,?,?)',

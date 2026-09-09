@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import {
   defaultPreferences,
   plans,
@@ -188,4 +189,19 @@ export async function hash(value: string) {
   )
     .map((x) => x.toString(16).padStart(2, '0'))
     .join('');
+}
+export async function validProxySecret(
+  supplied: string | null,
+  expected: string,
+) {
+  if (!supplied || supplied.length > 256) return false;
+  const encoder = new TextEncoder();
+  const [actualHash, expectedHash] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encoder.encode(supplied)),
+    crypto.subtle.digest('SHA-256', encoder.encode(expected)),
+  ]);
+  return timingSafeEqual(
+    new Uint8Array(actualHash),
+    new Uint8Array(expectedHash),
+  );
 }

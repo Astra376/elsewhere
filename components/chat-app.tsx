@@ -68,6 +68,7 @@ import {
   api,
   bootstrap,
   clearBootstrap,
+  ClientError,
   errorText,
   type AppConfig,
 } from '@/lib/client';
@@ -457,7 +458,14 @@ export function ChatApp() {
           flash('That search has ended. Start again when you’re ready.');
         }
       } catch (error) {
-        if (alive) flash(errorText(error));
+        if (alive) {
+          if (
+            error instanceof ClientError &&
+            [401, 403, 404].includes(error.status)
+          )
+            setQueue(null);
+          flash(errorText(error));
+        }
       } finally {
         pending = false;
       }

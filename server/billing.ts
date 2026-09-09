@@ -1,10 +1,9 @@
 import Stripe from 'stripe';
-import { z } from 'zod';
 import { ApiError, json, limit, type RowProfile } from './data';
 import type { Env } from './env';
 import type { Plan } from '../lib/domain';
 
-function prices(env: Env) {
+export function prices(env: Env) {
   return {
     basic: {
       monthly: env.STRIPE_BASIC_MONTHLY,
@@ -133,55 +132,13 @@ export async function billing(
     return json({ url: portal.url });
   }
   if (path === '/api/billing/checkout') {
-    const data = z
-      .object({
-        plan: z.enum(['basic', 'plus']),
-        interval: z.enum(['monthly', 'yearly']),
-        requestId: z.uuid(),
-      })
-      .parse(await request.json());
-    const price = prices(env)[data.plan][data.interval];
-    if (!price)
-      throw new ApiError(
-        503,
-        'This membership is not available yet.',
-        'not_configured',
-      );
-    const existing = await env.DB.prepare(
-      'SELECT id FROM subscriptions WHERE profileId=? AND status IN (?,?,?)',
-    )
-      .bind(profile.id, 'active', 'trialing', 'past_due')
-      .first();
-    if (existing)
-      throw new ApiError(
-        409,
-        'Manage your existing membership in the billing portal.',
-      );
-    let customer = profile.stripeCustomerId;
-    if (!customer) {
-      const created = await stripe.customers.create(
-        { email: user.email, metadata: { profileId: profile.id } },
-        { idempotencyKey: `customer:${profile.id}` },
-      );
-      customer = created.id;
-      await env.DB.prepare('UPDATE profiles SET stripeCustomerId=? WHERE id=?')
-        .bind(customer, profile.id)
-        .run();
-    }
-    const checkout = await stripe.checkout.sessions.create(
-      {
-        mode: 'subscription',
-        customer,
-        line_items: [{ price, quantity: 1 }],
-        client_reference_id: profile.id,
-        subscription_data: { metadata: { profileId: profile.id } },
-        success_url: `${env.APP_ORIGIN}/chat?view=plans&checkout=success`,
-        cancel_url: `${env.APP_ORIGIN}/chat?view=plans&checkout=cancelled`,
-        allow_promotion_codes: true,
-      },
-      { idempotencyKey: `checkout:${profile.id}:${data.requestId}` },
+    return env.BILLING.get(env.BILLING.idFromName(profile.id)).fetch(
+      new Request('https://billing/checkout', {
+        method: 'POST',
+        headers: { 'X-Profile-Id': profile.id },
+        body: await request.text(),
+      }),
     );
-    return json({ url: checkout.url });
   }
   throw new ApiError(404, 'Billing action not found.');
 }

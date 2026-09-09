@@ -10,6 +10,7 @@ import Stripe from 'stripe';
 import worker from '../server/worker';
 import type { Env } from '../server/env';
 import type { D1Migration } from '@cloudflare/vitest-pool-workers';
+import { validProxySecret } from '../server/data';
 
 const runtime = env as unknown as Env & { TEST_MIGRATIONS: D1Migration[] };
 beforeAll(async () => {
@@ -46,6 +47,26 @@ function cookie(response: Response) {
     .map((c) => c.split(';')[0])
     .join('; ');
 }
+it('validates the private proxy secret inside the Worker runtime', async () => {
+  const secret = 'fixture-private-proxy-secret';
+  expect(await validProxySecret(secret, secret)).toBe(true);
+  for (const supplied of [null, '', 'wrong', secret + 'x', 'x'.repeat(257)]) {
+    expect(await validProxySecret(supplied, secret)).toBe(false);
+  }
+  expect(
+    (await call('/config', undefined, '', { API_PROXY_KEY: secret })).status,
+  ).toBe(403);
+  const ctx = createExecutionContext();
+  const response = await worker.fetch(
+    new Request('http://localhost:3000/api/config', {
+      headers: { 'X-Elsewhere-Proxy': secret },
+    }),
+    { ...runtime, API_PROXY_KEY: secret },
+    ctx,
+  );
+  await waitOnExecutionContext(ctx);
+  expect(response.status).toBe(200);
+});
 it('email verification upgrades a guest and retains the same profile', async () => {
   const outgoing: { to: string[]; text: string }[] = [];
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, options) => {

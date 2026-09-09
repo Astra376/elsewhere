@@ -5,6 +5,7 @@
   "sortPackageJson": false,
   "ignorePatterns": [
     "package-lock.json",
+    "server/worker-configuration.d.ts",
     "pnpm-lock.yaml",
     "yarn.lock",
     "bun.lock",
