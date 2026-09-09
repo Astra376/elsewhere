@@ -22,8 +22,9 @@ type Signal = {
   hangup?: boolean;
 };
 export function CallPanel(props: React.ComponentProps<typeof DirectCallPanel>) {
-  if (props.chat.kind === 'room') return <RoomCallPanel {...props} />;
-  return <DirectCallPanel {...props} />;
+  if (props.chat.kind === 'room')
+    return <RoomCallPanel key={props.chat.id} {...props} />;
+  return <DirectCallPanel key={props.chat.id} {...props} />;
 }
 function DirectCallPanel({
   chat,

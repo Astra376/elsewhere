@@ -48,7 +48,10 @@ export function RoomCallPanel({
       cleanup.current();
       const current = meeting.current;
       meeting.current = null;
-      if (current) void current.leave().catch(() => {});
+      if (current) {
+        stopMedia(current);
+        void current.leave().catch(() => {});
+      }
     };
   }, [chat.id]);
 
@@ -89,16 +92,40 @@ export function RoomCallPanel({
               : 'You’re in the room.',
           );
       };
+      const ended = ({ state }: { state: string }) => {
+        if (meeting.current !== current) return;
+        cleanup.current();
+        meeting.current = null;
+        joining.current = false;
+        stopMedia(current);
+        void current.leave().catch(() => {});
+        if (alive.current) {
+          setJoined(false);
+          setParticipants([]);
+          setStatus(
+            state === 'kicked'
+              ? 'You were removed from this call.'
+              : state === 'ended'
+                ? 'This room call has ended.'
+                : 'The call disconnected. Join again when you’re ready.',
+          );
+        }
+      };
       current.participants.joined.on('participantJoined', refresh);
       current.participants.joined.on('participantLeft', refresh);
+      current.participants.joined.on('participantsCleared', refresh);
       current.meta.on('socketConnectionUpdate', connection);
+      current.self.on('roomLeft', ended);
       cleanup.current = () => {
         current.participants.joined.off('participantJoined', refresh);
         current.participants.joined.off('participantLeft', refresh);
+        current.participants.joined.off('participantsCleared', refresh);
         current.meta.off('socketConnectionUpdate', connection);
+        current.self.off('roomLeft', ended);
       };
       await current.join();
-      if (!alive.current) {
+      if (!alive.current || meeting.current !== current) {
+        stopMedia(current);
         await current.leave();
         return;
       }
@@ -109,7 +136,10 @@ export function RoomCallPanel({
       cleanup.current();
       const current = meeting.current;
       meeting.current = null;
-      if (current) await current.leave().catch(() => {});
+      if (current) {
+        stopMedia(current);
+        await current.leave().catch(() => {});
+      }
       joining.current = false;
       if (alive.current) {
         setStatus(errorText(error));
@@ -201,6 +231,11 @@ export function RoomCallPanel({
       </div>
     </section>
   );
+}
+
+function stopMedia(current: RealtimeKit) {
+  current.self.audioTrack?.stop();
+  current.self.videoTrack?.stop();
 }
 
 function ParticipantTile({

@@ -699,7 +699,11 @@ export default {
             '/game',
             await request.json(),
           );
-        if (action === 'call' || action === 'ice')
+        if (action === 'call') {
+          if (request.method !== 'POST') throw new ApiError(405, 'Use POST.');
+          return roomRequest(env, chatId, profile.id, '/call', {});
+        }
+        if (action === 'ice')
           return await callRoute(request, env, profile, chatId, action);
       }
       if (path === '/api/report' && request.method === 'POST') {

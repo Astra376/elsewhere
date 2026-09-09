@@ -18,6 +18,8 @@ export default defineConfig(async () => ({
           STRIPE_BASIC_MONTHLY: 'price_basic',
           STRIPE_PLUS_MONTHLY: 'price_plus',
           OPENROUTER_API_KEY: 'test-only-no-provider-requests',
+          REALTIME_API_TOKEN: 'test-only-realtime-token',
+          REALTIME_APP_ID: 'test-only-realtime-app',
         },
       },
     }),

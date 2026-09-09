@@ -21,6 +21,7 @@ import {
   requireMember,
 } from './data';
 import type { Env } from './env';
+import { callRoute } from './calls';
 
 type Attachment = {
   profileId: string;
@@ -38,7 +39,15 @@ const messageSchema = z.object({
 export class ChatRoom extends DurableObject<Env> {
   private tail: Promise<unknown> = Promise.resolve();
   private aiTail: Promise<unknown> = Promise.resolve();
+  private callTail: Promise<unknown> = Promise.resolve();
   fetch(request: Request) {
+    // Provider setup is serialized separately so slow media services cannot
+    // hold up persisted text messages or leaving the conversation.
+    if (new URL(request.url).pathname === '/call') {
+      const result = this.callTail.then(() => this.handle(request));
+      this.callTail = result.catch(() => {});
+      return result;
+    }
     const result = this.tail.then(() => this.handle(request));
     this.tail = result.catch(() => {});
     return result;
@@ -85,6 +94,15 @@ export class ChatRoom extends DurableObject<Env> {
       const profile = await getProfile(this.env, profileId);
       if (profile.standing === 'suspended')
         throw new ApiError(403, 'Your account is suspended.');
+      if (url.pathname === '/call')
+        return await callRoute(
+          request,
+          this.env,
+          profile,
+          chatId,
+          'call',
+          this.ctx.storage,
+        );
       if (url.pathname === '/socket') {
         if (request.headers.get('Upgrade') !== 'websocket')
           throw new ApiError(426, 'WebSocket upgrade required.');
