@@ -1,0 +1,63 @@
+# Deployment and operations
+
+## Current resources
+
+| Resource                          | Identifier                                             |
+| --------------------------------- | ------------------------------------------------------ |
+| GitHub repository                 | `Astra376/elsewhere` (private)                         |
+| Site                              | `appgprj_6aa16ce556c481918508081f5357f040`             |
+| Frontend origin                   | `https://elsewhere-chat.astra376.chatgpt.site`         |
+| API Worker                        | `elsewhere-api`                                        |
+| API origin                        | `https://elsewhere-api.robloxproxy.workers.dev`        |
+| Cloudflare account                | `6418d8b7a0996630c6eb574d93c85b54`                     |
+| D1                                | `elsewhere-db`, `8e150fc0-4b8b-43e6-94f4-808eed3b6ffe` |
+| R2                                | `elsewhere-media`, private                             |
+| RealtimeKit app                   | `7e36c220-4fd1-4d19-b1d6-6e832edba25e`                 |
+| TURN key                          | `53d46601f7c427366647ce3f9fd795a2`                     |
+| GitHub/Cloudflare repo connection | `b6504d57-1b0e-494a-abe3-28a6e959b715`                 |
+
+Identifiers are not credentials. Local `.dev.vars`, deployment archives, test data, and generated bundles are ignored by git. The API's runtime secrets include the auth signing key, proxy key, TURN bearer token/key ID, and private Web Push key. The frontend's server runtime has `API_BASE_URL` and the same `API_PROXY_KEY`. Never prefix private values with `NEXT_PUBLIC_` or embed them in client code.
+
+## First provider activation
+
+1. Set the final HTTPS frontend/API origins, update `lib/site.ts`, manifest origin-dependent values, Google callback allowlists, Stripe redirect URLs, and the policy's operating entity/contact details. Redeploy both layers together.
+2. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Register `{APP_ORIGIN}/api/auth/callback/google` as the OAuth callback; test a new account and an existing account separately.
+3. Set `RESEND_API_KEY` and a verified `EMAIL_FROM` domain. Test verification, guest linking, sign-in, password reset, expired links, and email delivery. Do not enable checkout before account verification works.
+4. Create recurring USD prices: Basic 5/month and 48/year, Plus 10/month and 96/year. Store their IDs in the four `STRIPE_*_MONTHLY/YEARLY` bindings. Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Point a Stripe webhook at `{API_ORIGIN}/api/billing/webhook` for `customer.subscription.created`, `.updated`, and `.deleted`; enable the customer billing portal. Test subscription creation, changes, cancellation, failure, replay, and SCA using Stripe test mode before live mode.
+5. Set `OPENROUTER_API_KEY`, choose `OPENROUTER_MODEL`, and configure provider spending limits. Verify the opt-in disclosure, human-only separation, rate limits, provider failures, and quality/safety evaluation. The key is not required for human chat.
+6. Create a Cloudflare token with the Realtime permissions needed for meetings and participants in this account. Store it as `REALTIME_API_TOKEN`. The connector could create the app/preset but could not mint the private runtime token. Verify group join, leave, reconnect, token refresh, and the configured preset permissions with multiple devices before enabling group calls broadly.
+7. Set `ADMIN_USER_IDS` to the authenticated `user.id` of the operator's verified account, not the public profile ID. Obtain it through an authenticated operator database query. Review an actual test report and answer a support ticket through `/moderation`.
+
+## Ship a change
+
+Run `npm ci`, `npm run check`, `npm run test:integration`, and the relevant browser tests. Commit the exact reviewed source. Apply new migrations with `npm run db:remote` before `npm run deploy:api`. Never rewrite an applied migration or point a test at the production database. The production configuration uses `--keep-vars` to preserve provider bindings managed outside source control.
+
+Frontend releases use Sites: build, push the committed source with a short-lived credential, package the built Worker/assets with the Sites packaging helper, save a version, and deploy that version. Preserve the owner-only access policy until launch dependencies are resolved. A backend proxy key is required on both sides; an incorrect key should fail closed.
+
+Cloudflare has a repository connection for `Astra376/elsewhere`. A dedicated build token and trigger still need to be configured before native automatic builds run. Build command: `npm ci && npm run typecheck && npm test`; deploy command: `npm run db:remote && npm run deploy:api`; root directory: `/`; production branch: `main`. Do not reuse another project's named deployment token without verifying its scope and ownership. GitHub's manual API workflow can alternatively use a repository `CLOUDFLARE_API_TOKEN` secret.
+
+## Observe and recover
+
+`/health` is a public availability check. Authenticated `/api/config` reports enabled integrations without exposing credentials. Workers observability records request failures; avoid logging message bodies, cookies, payment details, push keys, and provider tokens. Monitor 5xx/429 rates, queue time, D1 latency, socket reconnect frequency, TURN call success, and provider usage.
+
+For a faulty release, roll back the affected Worker to the last known good version through Cloudflare and redeploy the previous Sites version. Keep schema changes backward compatible; a code rollback does not reverse a D1 migration. Use Cloudflare's D1 recovery/export capabilities according to the account's actual retention and test restoration before relying on it. Do not promise a backup interval without verifying the account configuration.
+
+Rotate a leaked provider key at its provider, then replace its Worker secret. Rotate the proxy key on both frontend and API in a coordinated release. Rotating `AUTH_SECRET` invalidates sessions and should be announced operationally. Revoke or suspend abused accounts through the moderator interface; record reasons and handle appeals through support.
+
+## Data lifecycle
+
+An hourly schedule removes expired queue entries, one-use socket tickets, rate-limit buckets, read notifications older than 30 days, and messages in stranger/AI matches older than 30 days. DM and room message contents currently remain until account deletion or operator removal. Reports preserve investigation snapshots separately. Account deletion removes owned media and profile/social records and clears the author's message content. Paid accounts must resolve an active subscription first.
+
+Storage growth, inactive guest cleanup, media orphan cleanup, and report retention require an explicit operator policy before a large public rollout. These are not silently treated as solved by the history entry limits; showing fifteen history entries is different from deleting everything else.
+
+## Test boundaries
+
+The provider test runner uses a compatibility date of `2026-08-22` because its bundled Workerd currently supports that date. The actual API integration runner and production Worker use `2026-09-01`. Provider responses are simulated; human text/game tests use real local Workers, D1, R2, Durable Objects, and browser connections. The UI suite covers Chromium/Edge at five sizes. Real Safari/iOS installation/push, Android background behavior, restrictive-network calls, group calls, accessibility audits, load/soak tests, and real Stripe/email/Google accounts remain explicit release checks.
+
+The preview runs without advertising scripts. Before ad activation, obtain publisher approval, select compliant public placements, add the appropriate consent platform for the launch regions, enforce Plus's ad-free entitlement before script loading, and measure layout stability. Do not put ads in private chat transcripts or claim guaranteed search rankings.
+
+## Lint scope
+
+Application code is linted with type-aware correctness and hook dependency rules. Scaffolded `components/ui` primitives are kept as upstream library components and excluded from lint. React Compiler diagnostics are disabled because this build does not enable the compiler. Native links deliberately perform full navigations between app entry points, and authenticated private media deliberately bypasses Next image optimization. Semantic ARIA status/group roles are retained. Live media and user-uploaded clips do not currently have caption tracks; only the three media-bearing components exempt that caption rule. Text chat remains available, and live captions are an explicit accessibility improvement for a later release.
+
+The initial release also passed a real Cloudflare TURN video test using synthetic browser media, verified selected relay candidates, and media cleanup after hangup. `tests/browser/call.spec.ts` skips unless `.wrangler/relay-fixture.json` contains newly generated temporary ICE credentials from an authenticated live API smoke test. That file is ignored and must be removed after testing; never store the long-lived TURN bearer key there. Group calls remain unverified pending the separate RealtimeKit runtime credential.

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#7863e6" />
+    <title>You’re offline · Elsewhere</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        background: #f8f7fc;
+        color: #282334;
+        font:
+          16px/1.6 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 360px;
+        padding: 28px;
+        text-align: center;
+      }
+      img {
+        width: 64px;
+      }
+      h1 {
+        font-size: 30px;
+        letter-spacing: -1px;
+      }
+      p {
+        color: #6e677d;
+      }
+      a {
+        display: inline-block;
+        margin: 12px;
+        padding: 12px 28px;
+        background: #7863e6;
+        border-radius: 12px;
+        color: white;
+        text-decoration: none;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #15131e;
+          color: #f7f5ff;
+        }
+        p {
+          color: #b9b1cc;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icon.svg" alt="Elsewhere" />
+      <h1>A little pause.</h1>
+      <p>
+        You’re offline. Reconnect to pick up your conversations. Messages
+        already sent are saved.
+      </p>
+      <a href="/chat">Try again</a>
+    </main>
+  </body>
+</html>

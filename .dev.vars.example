@@ -1,0 +1,23 @@
+# Copy to .dev.vars for local development. Never commit actual secrets.
+AUTH_SECRET=replace-with-at-least-32-random-characters
+API_BASE_URL=http://127.0.0.1:8787
+
+# Optional providers; missing values leave the corresponding UI disabled.
+# OPENROUTER_API_KEY=
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+# RESEND_API_KEY=
+# EMAIL_FROM=Elsewhere <hello@your-domain.example>
+# STRIPE_SECRET_KEY=
+# STRIPE_WEBHOOK_SECRET=
+# STRIPE_BASIC_MONTHLY=
+# STRIPE_BASIC_YEARLY=
+# STRIPE_PLUS_MONTHLY=
+# STRIPE_PLUS_YEARLY=
+# TURN_KEY_ID=
+# TURN_API_TOKEN=
+# REALTIME_API_TOKEN=
+# REALTIME_APP_ID=
+# VAPID_PUBLIC_KEY=
+# VAPID_PRIVATE_KEY=
+# ADMIN_USER_IDS=comma-separated-auth-user-ids

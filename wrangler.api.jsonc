@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "elsewhere-api",
+  "main": "server/worker.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_ORIGIN": "http://localhost:3000",
+    "API_ORIGIN": "http://localhost:8787",
+    "CLOUDFLARE_ACCOUNT_ID": "6418d8b7a0996630c6eb574d93c85b54",
+    "OPENROUTER_MODEL": "openai/gpt-4.1-mini",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "elsewhere-db",
+      "database_id": "8e150fc0-4b8b-43e6-94f4-808eed3b6ffe",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "elsewhere-media" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "CHAT_ROOMS", "class_name": "ChatRoom" },
+      { "name": "MATCHMAKER", "class_name": "Matchmaker" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ChatRoom", "Matchmaker"] },
+  ],
+  "triggers": { "crons": ["17 * * * *"] },
+}
