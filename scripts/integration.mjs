@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import WebSocket from 'ws';
+import { parse as parseJsonc } from 'jsonc-parser';
 
 // A fresh local database and Worker process for every run. Never targets a remote URL.
 const root = resolve(import.meta.dirname, '..');
@@ -13,9 +14,14 @@ const configPath = join(work, 'wrangler.json');
 const origin = 'http://127.0.0.1:8790';
 const wrangler = join(root, 'node_modules/wrangler/bin/wrangler.js');
 await mkdir(work, { recursive: true });
-const config = JSON.parse(
+const configErrors = [];
+const config = parseJsonc(
   await readFile(join(root, 'wrangler.api.jsonc'), 'utf8'),
+  configErrors,
+  { allowTrailingComma: true },
 );
+if (configErrors.length)
+  throw new Error('The API Wrangler configuration is not valid JSONC.');
 config.main = join(root, 'server/worker.ts');
 config.vars = {
   ...config.vars,

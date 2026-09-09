@@ -406,8 +406,8 @@ export function Landing() {
             ))}
           </div>
           <p className="pricing-note">
-            Paid plans activate after secure checkout. Launch prices can be
-            adjusted before billing goes live.
+            Paid plans activate after secure checkout. Manage or cancel your
+            membership at any time.
           </p>
         </section>
         <section className="faq-section wrap">
