@@ -177,6 +177,11 @@ export function ChatApp() {
       url.searchParams.delete(key);
     history.replaceState(null, '', url.pathname + url.search);
   }, []);
+  const pendingPreferences = useRef<Partial<Preferences>>({});
+  const confirmedPreferences = useRef<Partial<Preferences>>({});
+  const preferenceVersions = useRef<Partial<Record<keyof Preferences, number>>>(
+    {},
+  );
   const profileQueue = useRef<Promise<unknown>>(Promise.resolve());
   const updateProfile = useCallback((change: ProfilePatch) => {
     const work = profileQueue.current.then(async () => {
@@ -184,9 +189,15 @@ export function ChatApp() {
         method: 'PATCH',
         body: JSON.stringify(change),
       });
-      if (change.preferences?.darkMode === undefined)
-        saved.preferences.darkMode = preferredDark();
-      setProfile(saved);
+      confirmedPreferences.current = { ...saved.preferences };
+      setProfile({
+        ...saved,
+        preferences: {
+          ...saved.preferences,
+          ...pendingPreferences.current,
+          darkMode: preferredDark(),
+        },
+      });
       return saved;
     });
     profileQueue.current = work.catch(() => {});
@@ -194,24 +205,42 @@ export function ChatApp() {
   }, []);
   const preference = useCallback(
     async (key: keyof Preferences, value: boolean) => {
+      const previous = profile?.preferences[key] ?? false;
+      const version = (preferenceVersions.current[key] ?? 0) + 1;
+      preferenceVersions.current[key] = version;
+      pendingPreferences.current[key] = value;
+      setProfile((p) =>
+        p ? { ...p, preferences: { ...p.preferences, [key]: value } } : p,
+      );
+      if (key === 'darkMode') {
+        applyTheme(value);
+        localStorage.setItem('elsewhere-theme', value ? 'dark' : 'light');
+      }
       try {
-        const saved = await updateProfile({
-          preferences: {
-            [key]: value,
-          },
-        });
-        if (key === 'darkMode') {
-          applyTheme(saved.preferences.darkMode);
-          localStorage.setItem(
-            'elsewhere-theme',
-            saved.preferences.darkMode ? 'dark' : 'light',
-          );
-        }
+        await updateProfile({ preferences: { [key]: value } });
+        if (preferenceVersions.current[key] === version)
+          delete pendingPreferences.current[key];
       } catch (error) {
-        flash(errorText(error));
+        if (preferenceVersions.current[key] === version) {
+          delete pendingPreferences.current[key];
+          const rollback = confirmedPreferences.current[key] ?? previous;
+          setProfile((p) =>
+            p
+              ? { ...p, preferences: { ...p.preferences, [key]: rollback } }
+              : p,
+          );
+          if (key === 'darkMode') {
+            applyTheme(rollback);
+            localStorage.setItem(
+              'elsewhere-theme',
+              rollback ? 'dark' : 'light',
+            );
+          }
+          flash('Could not save that setting. ' + errorText(error));
+        }
       }
     },
-    [updateProfile, flash],
+    [updateProfile, flash, profile?.preferences],
   );
   const handleEvent = useCallback(
     (event: ChatEvent) => {
@@ -347,6 +376,7 @@ export function ChatApp() {
           api<AppConfig>('/config'),
         ]);
         if (!mounted.current) return;
+        confirmedPreferences.current = { ...me.preferences };
         me.preferences.darkMode = preferredDark();
         setProfile(me);
         setConfig(settings);
@@ -492,6 +522,7 @@ export function ChatApp() {
     }
     setBusy(true);
     try {
+      if (leaving.current) await leaving.current;
       if (chat && !chat.endedAt) await leaveChat();
       if (options.nearMe && !options.location) {
         flash(
@@ -500,7 +531,10 @@ export function ChatApp() {
         setFiltersOpen(true);
         return;
       }
-      await updateProfile({ interests: options.interests });
+      if (
+        JSON.stringify(profile.interests) !== JSON.stringify(options.interests)
+      )
+        await updateProfile({ interests: options.interests });
       const result = await api<{
         status: string;
         chatId?: string;
@@ -526,21 +560,39 @@ export function ChatApp() {
       setBusy(false);
     }
   }
+  const leaving = useRef<Promise<void> | null>(null);
   async function leaveChat() {
-    if (chat && !chat.endedAt)
-      await api(`/chats/${encodeURIComponent(chat.id)}/leave`, {
-        method: 'POST',
-        body: '{}',
-      });
-    await api('/match', { method: 'DELETE' });
+    if (leaving.current) return leaving.current;
+    const previousChat = chat;
     setChat(null);
     setQueue(null);
     setGame(null);
     setCallOpen(false);
     setShowGame(false);
     sessionStorage.removeItem('elsewhere-active-chat');
+    const work = (async () => {
+      if (previousChat && !previousChat.endedAt)
+        await api(`/chats/${encodeURIComponent(previousChat.id)}/leave`, {
+          method: 'POST',
+          body: '{}',
+        });
+      else await api('/match', { method: 'DELETE' });
+    })();
+    leaving.current = work;
+    try {
+      await work;
+    } catch (error) {
+      if (previousChat) {
+        setChat(previousChat);
+        sessionStorage.setItem('elsewhere-active-chat', previousChat.id);
+      }
+      throw error;
+    } finally {
+      leaving.current = null;
+    }
   }
   async function joinRoom(slug: string, accepted = false) {
+    if (leaving.current) await leaving.current;
     if (!profile?.id) return;
     if (!profile.acceptedAt && !accepted) {
       afterConsent.current = () => joinRoom(slug, true);
@@ -549,6 +601,7 @@ export function ChatApp() {
     }
     setBusy(true);
     try {
+      if (leaving.current) await leaving.current;
       if (chat && !chat.endedAt) await leaveChat();
       else if (queue) await api('/match', { method: 'DELETE' });
       const joined = await api<Conversation>('/rooms/join', {
@@ -563,11 +616,13 @@ export function ChatApp() {
     }
   }
   async function cancelMatching() {
+    const previous = queue;
+    setQueue(null);
     setBusy(true);
     try {
       await api('/match', { method: 'DELETE' });
-      setQueue(null);
     } catch (error) {
+      setQueue(previous);
       flash(errorText(error));
     } finally {
       setBusy(false);
@@ -1362,7 +1417,6 @@ export function ChatApp() {
                               }
                             >
                               <ImagePlus />
-                              <PlanRequirement plan="basic" />
                             </button>
                             <textarea
                               value={draft}
@@ -1418,10 +1472,18 @@ export function ChatApp() {
                                 void upload(e.target.files[0]);
                             }}
                           />
+                          <div className="composer-access">
+                            <span>
+                              <PlanRequirement plan="basic" /> Images
+                            </span>
+                            <span>
+                              <PlanRequirement plan="plus" /> Videos
+                            </span>
+                          </div>
                           <p className="composer-hint">
-                            <PlanRequirement plan="basic" /> Images ·{' '}
-                            <PlanRequirement plan="plus" /> Videos · Enter to
-                            send · Shift + Enter for a new line
+                            <span>
+                              Enter to send · Shift + Enter for a new line
+                            </span>
                             <span>{draft.length}/4000</span>
                           </p>
                         </>

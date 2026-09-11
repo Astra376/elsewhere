@@ -58,12 +58,12 @@ export class ChatRoom extends DurableObject<Env> {
       const url = new URL(request.url),
         profileId = request.headers.get('X-Profile-Id')!,
         chatId = request.headers.get('X-Chat-Id')!;
-      const chat = await requireMember(
-        this.env,
-        chatId,
-        profileId,
-        url.pathname !== '/leave',
-      );
+      const [chat, profile] = await Promise.all([
+        requireMember(this.env, chatId, profileId, url.pathname !== '/leave'),
+        url.pathname === '/leave'
+          ? Promise.resolve(null)
+          : getProfile(this.env, profileId),
+      ]);
       if (url.pathname === '/leave') {
         const ended = chat.kind === 'match' || chat.kind === 'ai';
         const now = Date.now();
@@ -92,7 +92,7 @@ export class ChatRoom extends DurableObject<Env> {
           ws.close(1000, 'Conversation left');
         return json({ ok: true });
       }
-      const profile = await getProfile(this.env, profileId);
+      if (!profile) throw new ApiError(404, 'Profile not found.');
       if (profile.standing === 'suspended')
         throw new ApiError(403, 'Your account is suspended.');
       if (url.pathname === '/call')
@@ -142,28 +142,46 @@ export class ChatRoom extends DurableObject<Env> {
         if (profile.standing === 'limited')
           throw new ApiError(403, 'Messaging is temporarily limited.');
         const data = messageSchema.parse(await request.json());
-        const existing = await this.env.DB.prepare(
-          'SELECT * FROM messages WHERE id=?',
-        )
-          .bind(data.id)
-          .first<ChatMessage>();
+        const bucket = Math.floor(Date.now() / 60000);
+        const checks = await this.env.DB.batch([
+          this.env.DB.prepare('SELECT * FROM messages WHERE id=?').bind(
+            data.id,
+          ),
+          this.env.DB.prepare(
+            'INSERT INTO apiLimits (key,count,expiresAt) SELECT ?,1,? WHERE NOT EXISTS (SELECT 1 FROM messages WHERE id=?) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count',
+          ).bind(`message:${profileId}:${bucket}`, (bucket + 2) * 60, data.id),
+          this.env.DB.prepare(
+            'SELECT profileId FROM members WHERE chatId=? AND profileId<>? AND leftAt IS NULL',
+          ).bind(chatId, profileId),
+          this.env.DB.prepare(
+            'SELECT 1 FROM blocks b JOIN members m ON m.chatId=? AND m.leftAt IS NULL AND m.profileId<>? WHERE (b.blocker=? AND b.blocked=m.profileId) OR (b.blocked=? AND b.blocker=m.profileId) LIMIT 1',
+          ).bind(chatId, profileId, profileId, profileId),
+        ]);
+        const existing = checks[0].results[0] as ChatMessage | undefined;
         if (existing) {
           if (existing.senderId !== profileId || existing.chatId !== chatId)
             throw new ApiError(409, 'Message identifier already used.');
           return json(existing);
         }
-        await limit(this.env, `message:${profileId}`, 40);
-        const otherMembers = await this.env.DB.prepare(
-          'SELECT profileId FROM members WHERE chatId=? AND profileId<>? AND leftAt IS NULL',
+        if (
+          Number(
+            (checks[1].results[0] as { count?: number } | undefined)?.count ??
+              41,
+          ) > 40
         )
-          .bind(chatId, profileId)
-          .all<{ profileId: string }>();
-        for (const other of chat.kind === 'room' ? [] : otherMembers.results)
-          if (await blocked(this.env, profileId, other.profileId))
-            throw new ApiError(
-              403,
-              'Messaging is unavailable between these accounts.',
-            );
+          throw new ApiError(
+            429,
+            'Slow down a little. Try again shortly.',
+            'rate_limited',
+          );
+        const otherMembers = {
+          results: checks[2].results as { profileId: string }[],
+        };
+        if (chat.kind !== 'room' && checks[3].results.length)
+          throw new ApiError(
+            403,
+            'Messaging is unavailable between these accounts.',
+          );
         if (data.kind === 'text' && !data.text)
           throw new ApiError(400, 'Write a message first.');
         if (data.kind !== 'text') {
@@ -380,6 +398,33 @@ export class ChatRoom extends DurableObject<Env> {
       const data = JSON.parse(raw);
       if (data.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong' }));
+        return;
+      }
+      if (data.type === 'message') {
+        const response = await this.fetch(
+          new Request('https://room/message', {
+            method: 'POST',
+            headers: {
+              'X-Profile-Id': state.profileId,
+              'X-Chat-Id': state.chatId,
+            },
+            body: JSON.stringify(data.message),
+          }),
+        );
+        const result = await response.json();
+        ws.send(
+          JSON.stringify({
+            type: 'message_ack',
+            id: data.message?.id,
+            ...(response.ok
+              ? { message: result }
+              : {
+                  error:
+                    (result as { error?: string }).error ??
+                    'Message could not be sent.',
+                }),
+          }),
+        );
         return;
       }
       await requireMember(this.env, state.chatId, state.profileId);

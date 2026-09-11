@@ -299,6 +299,28 @@ try {
     'hello :)',
     'message reaches the other connected guest',
   );
+  const socketMessageId = randomUUID();
+  aw.ws.send(
+    JSON.stringify({
+      type: 'message',
+      message: { id: socketMessageId, text: 'Socket delivery', kind: 'text' },
+    }),
+  );
+  const ack = await waitFor(() =>
+    aw.ws.events.find(
+      (e) => e.type === 'message_ack' && e.id === socketMessageId,
+    ),
+  );
+  check(
+    ack.message.id,
+    socketMessageId,
+    'WebSocket send acknowledges a persisted message',
+  );
+  await waitFor(() =>
+    bw.ws.events.find(
+      (e) => e.type === 'message' && e.message.id === socketMessageId,
+    ),
+  );
   const history = await request(b, `/chats/${chatId}/messages`);
   check(
     history.data.messages.filter((m) => m.id === id).length,

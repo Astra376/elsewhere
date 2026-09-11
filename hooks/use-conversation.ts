@@ -11,6 +11,7 @@ export type ChatEvent = {
   online?: boolean;
   ended?: boolean;
   error?: string;
+  id?: string;
   from?: string;
   signal?: unknown;
 };
@@ -53,6 +54,12 @@ export function useConversation(
     },
     [chatId],
   );
+  const acknowledgements = useRef(
+    new Map<
+      string,
+      (result: { message?: ChatMessage; error?: string } | null) => void
+    >(),
+  );
   const activeChat = useRef(chat?.id);
   activeChat.current = chat?.id;
   const socket = useRef<WebSocket | null>(null),
@@ -60,6 +67,7 @@ export function useConversation(
     typingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   callback.current = onEvent;
   useEffect(() => {
+    const pendingAcks = acknowledgements.current;
     setMessages([]);
     setTyping(false);
     if (!chatId) return;
@@ -138,6 +146,10 @@ export function useConversation(
           } catch {
             return;
           }
+          if (data.type === 'message_ack' && data.id) {
+            acknowledgements.current.get(data.id)?.(data);
+            return;
+          }
           if (data.type === 'pong') {
             lastPong = Date.now();
             return;
@@ -152,6 +164,7 @@ export function useConversation(
           callback.current(data);
         };
         ws.onclose = () => {
+          for (const resolve of pendingAcks.values()) resolve(null);
           if (alive) {
             setConnection(navigator.onLine ? 'reconnecting' : 'offline');
             schedule();
@@ -207,6 +220,7 @@ export function useConversation(
       clearInterval(pollInterval);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      for (const resolve of pendingAcks.values()) resolve(null);
       socket.current?.close(1000, 'Leaving conversation');
       socket.current = null;
     };
@@ -231,7 +245,43 @@ export function useConversation(
         { ...message, state: 'sending' },
       ]);
       try {
-        const saved = await api<ChatMessage>(
+        let saved: ChatMessage | undefined;
+        const ws = socket.current;
+        if (ws?.readyState === WebSocket.OPEN) {
+          const acknowledged = await new Promise<{
+            message?: ChatMessage;
+            error?: string;
+          } | null>((resolve) => {
+            const timer = setTimeout(() => finish(null), 4000);
+            const finish = (
+              result: { message?: ChatMessage; error?: string } | null,
+            ) => {
+              clearTimeout(timer);
+              acknowledgements.current.delete(message.id);
+              resolve(result);
+            };
+            acknowledgements.current.set(message.id, finish);
+            try {
+              ws.send(
+                JSON.stringify({
+                  type: 'message',
+                  message: {
+                    id: message.id,
+                    text: message.text,
+                    kind: message.kind,
+                    mediaId: message.mediaId,
+                  },
+                }),
+              );
+            } catch {
+              finish(null);
+            }
+          });
+          if (acknowledged?.error) throw new Error(acknowledged.error);
+          saved = acknowledged?.message;
+        }
+        if (activeChat.current !== chatId) return false;
+        saved ??= await api<ChatMessage>(
           `/chats/${encodeURIComponent(chatId)}/messages`,
           {
             method: 'POST',

@@ -3482,3 +3482,24 @@
   background: var(--background);
   color: var(--foreground);
 }
+
+.composer-access {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 8px 4px 0;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.composer-access > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.composer-hint {
+  gap: 12px;
+}
+.composer-hint > span:last-child {
+  flex-shrink: 0;
+}

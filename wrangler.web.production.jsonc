@@ -33,5 +33,11 @@
       "custom_domain": true,
       "zone_id": "c165b6f8cc85ffb45520f8adad02479e"
     }
+  ],
+  "services": [
+    {
+      "binding": "CHATUP_API",
+      "service": "elsewhere-api"
+    }
   ]
 }

@@ -78,3 +78,9 @@ The three-browser RealtimeKit test passed using an isolated real provider meetin
 Country include/exclude limits are enforced separately: Free 3, Basic 5, Plus 10. Near me requires Basic or Plus and a selected city or browser permission; its radius is approximately 100 km. Both participants' filters must match. The frontend proxy overwrites location headers from Cloudflare request metadata. Coarse coordinates are removed when a match forms, or with queue cleanup. Missing location never satisfies a location inclusion or radius restriction.
 
 City lookup uses Photon with a 6-second timeout, per-profile rate limit, and edge caching. The public service has no availability guarantee; use browser location if unavailable and provision a dedicated geocoder before high traffic. No new credentials are required for this initial integration.
+
+## Interaction latency
+
+Preferences and leaving a conversation update locally before server confirmation, with error recovery. Messages use the authenticated conversation socket and are marked sent only after persistence; missing acknowledgements fall back to HTTP with the same message ID after four seconds. The integration suite checks socket acknowledgement, delivery, and duplicate protection.
+
+The frontend calls the API through the CHATUP_API service binding. Production API placement targets aws:ap-southeast-2 because the current D1 database reports region OC. Re-measure before changing placement: automatic Smart Placement increased latency in the deployment check. One Adelaide smoke test measured persisted socket delivery at 887 ms versus 3201 ms for the previous HTTP send path; matching remained about 2–3 seconds. These are individual checks, not latency guarantees.

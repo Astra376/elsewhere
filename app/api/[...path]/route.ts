@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 export const dynamic = 'force-dynamic';
 async function proxy(request: Request) {
   const runtime = env as unknown as {
+    CHATUP_API?: { fetch(request: Request): Promise<Response> };
     API_BASE_URL?: string;
     API_PROXY_KEY?: string;
   };
@@ -31,13 +32,16 @@ async function proxy(request: Request) {
   if (runtime.API_PROXY_KEY)
     headers.set('X-Elsewhere-Proxy', runtime.API_PROXY_KEY);
   try {
-    const response = await fetch(target, {
+    const upstream = new Request(target, {
       method: request.method,
       headers,
       body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
       redirect: 'manual',
       signal: AbortSignal.timeout(35000),
     });
+    const response = await (runtime.CHATUP_API
+      ? runtime.CHATUP_API.fetch(upstream)
+      : fetch(upstream));
     return new Response(response.body, {
       status: response.status,
       headers: new Headers(response.headers),
