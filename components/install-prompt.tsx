@@ -46,7 +46,7 @@ export function InstallPrompt() {
   }
   if (!visible) return null;
   return (
-    <aside className="install-prompt" aria-label="Install Elsewhere">
+    <aside className="install-prompt" aria-label="Install ChatUp">
       <img src="/icon.svg" alt="" />
       <div>
         <strong>A little closer, anytime.</strong>
@@ -56,7 +56,7 @@ export function InstallPrompt() {
               Tap <Share size={13} /> Share, then Add to Home Screen.
             </>
           ) : (
-            'Keep Elsewhere on your home screen.'
+            'Keep ChatUp on your home screen.'
           )}
         </p>
         {event && (

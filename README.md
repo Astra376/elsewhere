@@ -1,4 +1,4 @@
-# Elsewhere
+# ChatUp
 
 A responsive stranger-chat web app with a guest-first flow, persistent social profiles, reconnecting text chat, private media, games, and optional voice, video, and AI conversations.
 
@@ -32,7 +32,7 @@ Provider tests use simulated email and Stripe responses inside the Cloudflare ru
 
 ## Deployment and operations
 
-See [the deployment runbook](docs/OPERATIONS.md), [architecture and launch research](docs/ARCHITECTURE-RESEARCH.md), and [security policy](SECURITY.md). Production credentials belong in Cloudflare Worker secrets and Sites environment variables, never in browser bundles or git. The repository's production Wrangler configuration includes resource identifiers, not credentials.
+Start with [the ChatUp launch steps](docs/LAUNCH.md). See also [the deployment runbook](docs/OPERATIONS.md), [architecture and launch research](docs/ARCHITECTURE-RESEARCH.md), and [security policy](SECURITY.md). Production credentials belong in Cloudflare Worker secrets and Sites environment variables, never in browser bundles or git. The repository's production Wrangler configuration includes resource identifiers, not credentials.
 
 The API has been provisioned on Cloudflare with D1, R2, Durable Objects, TURN, and an hourly maintenance schedule. The frontend is deployed through Sites on Cloudflare infrastructure. GitHub Actions validates changes and provides an explicit API deployment workflow; automatic deployment is enabled only after the repository's Cloudflare build credentials are connected.
 

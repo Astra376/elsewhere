@@ -828,7 +828,7 @@ export function ChatApp() {
             <span className="upgrade-icon">
               <Sparkles size={20} />
             </span>
-            <strong>A little more Elsewhere</strong>
+            <strong>A little more ChatUp</strong>
             <p>More interests. More possibilities.</p>
             <span>
               Explore memberships <ArrowRight size={15} />
@@ -1157,7 +1157,7 @@ export function ChatApp() {
                       Cancel search
                     </button>
                     <p className="field-note">
-                      Early days, fresh connections. Invite someone to Elsewhere
+                      Early days, fresh connections. Invite someone to ChatUp
                       <br />
                       or explore a room while more people arrive.
                     </p>
@@ -1628,7 +1628,7 @@ export function ChatApp() {
         <DialogContent className="app-dialog">
           <DialogTitle>A good place to meet.</DialogTitle>
           <DialogDescription>
-            Elsewhere is for adults 18 and older. Be respectful, keep personal
+            ChatUp is for adults 18 and older. Be respectful, keep personal
             information private, and leave or report anything uncomfortable.
           </DialogDescription>
           <ToggleRow

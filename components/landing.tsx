@@ -434,7 +434,7 @@ export function Landing() {
                 'Send a friend request. Once they accept, you can find each other in Friends and message again, including as a guest.',
               ],
               [
-                'Is Elsewhere free?',
+                'Is ChatUp free?',
                 'Yes. Text, voice, video, friends, rooms, and games are available on Free. Basic and Plus add matching controls, media sharing, and more room for your interests.',
               ],
             ].map(([q, a]) => (

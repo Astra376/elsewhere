@@ -35,7 +35,7 @@ export function SupportForm() {
   return (
     <main className="standalone-form support-form">
       <Brand />
-      <a href="/chat">← Back to Elsewhere</a>
+      <a href="/chat">← Back to ChatUp</a>
       <div className="settings-card">
         <h1>A little help.</h1>
         <p>
@@ -115,7 +115,7 @@ export function SupportForm() {
               <p>{t.message}</p>
               {t.response && (
                 <blockquote>
-                  <strong>Elsewhere support</strong>
+                  <strong>ChatUp support</strong>
                   <p>{t.response}</p>
                 </blockquote>
               )}

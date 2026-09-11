@@ -51,7 +51,7 @@ async function sendEmail(env: Env, to: string, subject: string, url: string) {
 }
 export function createAuth(env: Env) {
   return betterAuth({
-    appName: 'Elsewhere',
+    appName: 'ChatUp',
     baseURL: env.APP_ORIGIN,
     basePath: '/api/auth',
     secret: env.AUTH_SECRET,
@@ -67,13 +67,13 @@ export function createAuth(env: Env) {
       maxPasswordLength: 128,
       requireEmailVerification: true,
       sendResetPassword: async ({ user, url }) =>
-        sendEmail(env, user.email, 'Reset your Elsewhere password', url),
+        sendEmail(env, user.email, 'Reset your ChatUp password', url),
     },
     emailVerification: {
       sendOnSignUp: true,
       autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) =>
-        sendEmail(env, user.email, 'Verify your Elsewhere email', url),
+        sendEmail(env, user.email, 'Verify your ChatUp email', url),
     },
     socialProviders:
       env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET

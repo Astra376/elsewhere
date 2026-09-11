@@ -439,7 +439,7 @@ export function AccountSettings({
               title="Push notifications"
               description={
                 config.push
-                  ? 'Get updates when Elsewhere is in the background.'
+                  ? 'Get updates when ChatUp is in the background.'
                   : 'Available after notification delivery is connected.'
               }
               checked={profile.preferences.push}
@@ -461,7 +461,7 @@ export function AccountSettings({
             />
           </section>
           <section className="settings-card settings-list">
-            <h2>Take Elsewhere with you.</h2>
+            <h2>Take ChatUp with you.</h2>
             <p className="settings-description">
               On iPhone or iPad, tap Share in Safari, then Add to Home Screen.
               On Android, open your browser menu and choose Install app.

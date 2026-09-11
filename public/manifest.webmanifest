@@ -1,7 +1,7 @@
 {
   "id": "/chat",
-  "name": "Elsewhere — Meet someone new",
-  "short_name": "Elsewhere",
+  "name": "ChatUp — Meet someone new",
+  "short_name": "ChatUp",
   "description": "A hello can go anywhere. Text, voice, video, and little games with new connections.",
   "start_url": "/chat?source=installed",
   "scope": "/",

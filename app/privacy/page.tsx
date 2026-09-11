@@ -3,22 +3,21 @@ import { LegalPage } from '@/components/legal-page';
 export const metadata: Metadata = {
   title: 'Privacy policy',
   description:
-    'How Elsewhere handles profiles, conversations, subscriptions, and privacy choices.',
+    'How ChatUp handles profiles, conversations, subscriptions, and privacy choices.',
 };
 export default function Privacy() {
   return (
     <LegalPage
       title="Your privacy matters."
-      intro="Here is what Elsewhere collects, why it is needed, and what you control."
+      intro="Here is what ChatUp collects, why it is needed, and what you control."
     >
       <section>
         <h2>Who this policy covers</h2>
         <p>
-          This policy applies to the Elsewhere preview website and installed web
-          app. You can contact the operator through{' '}
-          <a href="/support?category=privacy">Support → Privacy request</a>. The
-          public launch policy will identify the operating entity and its
-          contact details before the service opens to the public.
+          This policy applies to ChatUp at chatup.chat and its installed web
+          app. For privacy questions or requests, use{' '}
+          <a href="/support?category=privacy">Support → Privacy request</a> or
+          email <a href="mailto:support@chatup.chat">support@chatup.chat</a>.
         </p>
       </section>
       <section>
@@ -48,7 +47,7 @@ export default function Privacy() {
         </p>
         <p>
           Calls use encrypted WebRTC transport and Cloudflare’s relay or
-          group-call infrastructure. Elsewhere does not enable call recording or
+          group-call infrastructure. ChatUp does not enable call recording or
           transcription. Call services process the technical metadata needed to
           connect participants. Text chat is not end-to-end encrypted: the
           service processes and stores messages for delivery and moderation.
@@ -70,7 +69,7 @@ export default function Privacy() {
         <p>
           Cloudflare hosts the chat service, database, media storage, and
           realtime connections. OpenRouter processes optional AI conversations.
-          Stripe handles paid memberships when checkout is enabled; Elsewhere
+          Stripe handles paid memberships when checkout is enabled; ChatUp
           stores membership and billing reference IDs, not full card details.
           Email delivery and Google authentication are used only when those
           options are connected. These providers may process information outside

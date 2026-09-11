@@ -14,7 +14,7 @@ export function LegalPage({
       <header className="site-header">
         <Brand />
         <a className="button button-outline button-small" href="/chat">
-          Back to Elsewhere <ArrowUpRight size={16} />
+          Back to ChatUp <ArrowUpRight size={16} />
         </a>
       </header>
       <main className="legal-content">
@@ -25,7 +25,7 @@ export function LegalPage({
         <h1>{title}</h1>
         <p className="legal-intro">{intro}</p>
         <p className="legal-updated">
-          Effective 10 September 2026 · Preview edition
+          Effective 11 September 2026
         </p>
         {children}
       </main>

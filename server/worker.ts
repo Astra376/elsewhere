@@ -75,7 +75,7 @@ export default {
           env.API_PROXY_KEY,
         ))
       )
-        throw new ApiError(403, 'Use Elsewhere to access this service.');
+        throw new ApiError(403, 'Use ChatUp to access this service.');
       const origin = request.headers.get('Origin');
       if (origin && origin !== env.APP_ORIGIN)
         throw new ApiError(403, 'This origin is not allowed.');

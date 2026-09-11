@@ -16,24 +16,24 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'Elsewhere — A hello can go anywhere',
-    template: '%s · Elsewhere',
+    default: 'ChatUp — A hello can go anywhere',
+    template: '%s · ChatUp',
   },
   description:
     'Meet someone outside your usual circle. Free stranger chat, shared interests, voice and video calls, little games, and conversations worth keeping.',
-  applicationName: 'Elsewhere',
+  applicationName: 'ChatUp',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Elsewhere',
+    title: 'ChatUp',
   },
   openGraph: {
-    title: 'Elsewhere — A hello can go anywhere',
+    title: 'ChatUp — A hello can go anywhere',
     description:
       'A little curiosity. A new connection. Meet people through text, voice, video, and shared interests.',
     type: 'website',
-    siteName: 'Elsewhere',
+    siteName: 'ChatUp',
   },
   icons: { icon: '/icon.svg', apple: '/icon-192.png' },
 };

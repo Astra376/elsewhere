@@ -8,7 +8,7 @@
     "enabled": true,
   },
   "vars": {
-    "APP_ORIGIN": "https://elsewhere-chat.astra376.chatgpt.site",
+    "APP_ORIGIN": "https://chatup.chat",
     "API_ORIGIN": "https://elsewhere-api.robloxproxy.workers.dev",
     "CLOUDFLARE_ACCOUNT_ID": "6418d8b7a0996630c6eb574d93c85b54",
     "OPENROUTER_MODEL": "openai/gpt-4.1-mini",

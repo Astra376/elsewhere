@@ -3,22 +3,22 @@ import { LegalPage } from '@/components/legal-page';
 export const metadata: Metadata = {
   title: 'Terms of service',
   description:
-    'The rules for using Elsewhere, including guest accounts and memberships.',
+    'The rules for using ChatUp, including guest accounts and memberships.',
 };
 export default function Terms() {
   return (
     <LegalPage
       title="Good connections. Clear terms."
-      intro="Using Elsewhere means agreeing to these terms and our community rules."
+      intro="Using ChatUp means agreeing to these terms and our community rules."
     >
       <section>
-        <h2>Who can use Elsewhere</h2>
+        <h2>Who can use ChatUp</h2>
         <p>
           You must be at least 18 years old and legally permitted to use the
           service where you live. Do not misrepresent your age or use the
-          service after suspension. The preview is provided by the Elsewhere
-          operator. Contact the operator through <a href="/support">Support</a>;
-          operating entity details will be finalized before public launch.
+          service after suspension. For questions about ChatUp or these terms,
+          use <a href="/support">Support</a> or email{' '}
+          <a href="mailto:support@chatup.chat">support@chatup.chat</a>.
         </p>
       </section>
       <section>
@@ -51,7 +51,7 @@ export default function Terms() {
       <section>
         <h2>Your content</h2>
         <p>
-          You keep ownership of what you share. You grant Elsewhere permission
+          You keep ownership of what you share. You grant ChatUp permission
           to host, transmit, display to intended participants, and review
           reported content as needed to operate the service. Do not share
           content that infringes another person’s rights. Other participants can

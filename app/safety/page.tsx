@@ -14,7 +14,7 @@ export default function Safety() {
       <section>
         <h2>Adults only. Respect always.</h2>
         <p>
-          Elsewhere is for people 18 and older. Sexual content and nudity are
+          ChatUp is for people 18 and older. Sexual content and nudity are
           not allowed. Do not harass, threaten, insult, exploit, or target
           someone because of who they are. If someone says no or leaves, respect
           that choice.
@@ -57,7 +57,7 @@ export default function Safety() {
       <section>
         <h2>No hidden AI</h2>
         <p>
-          Elsewhere’s AI companions always have an AI label. They cannot
+          ChatUp’s AI companions always have an AI label. They cannot
           participate in voice or video. Choose People only to exclude them.
           Report a human user impersonating another person or trying to mislead
           you.

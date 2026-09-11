@@ -112,7 +112,7 @@ export function PlansView({
                   ? 'Follow your curiosity.'
                   : key === 'basic'
                     ? 'Find more of your people.'
-                    : 'The full Elsewhere experience.'}
+                    : 'The full ChatUp experience.'}
               </p>
               <div className="price">
                 ${yearly ? plan.monthly * 0.8 : plan.monthly}

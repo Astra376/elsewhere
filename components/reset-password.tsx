@@ -27,7 +27,7 @@ export function ResetPassword() {
           <>
             <p>Your password has been changed.</p>
             <a className="button button-primary" href="/chat?auth=signin">
-              Log in to Elsewhere
+              Log in to ChatUp
             </a>
           </>
         ) : (

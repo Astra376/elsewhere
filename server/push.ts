@@ -113,7 +113,7 @@ export async function deliverPush(
           keys: { p256dh: row.p256dh, auth: row.auth },
         },
         JSON.stringify({
-          title: 'Elsewhere',
+          title: 'ChatUp',
           body:
             type === 'message'
               ? 'You have a new message.'

@@ -10,7 +10,7 @@ export async function setPushEnabled(
     !('Notification' in window)
   )
     throw new Error(
-      'Install Elsewhere to your home screen or use a browser that supports push notifications.',
+      'Install ChatUp to your home screen or use a browser that supports push notifications.',
     );
   const registration = await navigator.serviceWorker.ready;
   let subscription = await registration.pushManager.getSubscription();

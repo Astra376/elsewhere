@@ -1,5 +1,5 @@
 /* Private profiles, API responses, chats, and attachments are never cached. */
-const CACHE = 'elsewhere-shell-v1';
+const CACHE = 'elsewhere-shell-v2';
 const SHELL = ['/offline.html', '/icon-192.png', '/icon-512.png', '/icon.svg'];
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
@@ -39,7 +39,7 @@ self.addEventListener('fetch', (event) => {
 });
 self.addEventListener('push', (event) => {
   let payload = {
-    title: 'Elsewhere',
+    title: 'ChatUp',
     body: 'You have a new update.',
     url: '/chat',
   };

@@ -472,7 +472,7 @@ export class ChatRoom extends DurableObject<Env> {
             Authorization: `Bearer ${this.env.OPENROUTER_API_KEY}`,
             'Content-Type': 'application/json',
             'HTTP-Referer': this.env.APP_ORIGIN,
-            'X-Title': 'Elsewhere',
+            'X-Title': 'ChatUp',
           },
           body: JSON.stringify({
             model: this.env.OPENROUTER_MODEL || 'openai/gpt-4.1-mini',
