@@ -69,6 +69,7 @@ export class BillingCoordinator extends DurableObject<Env> {
     return session;
   }
   private async handle(request: Request) {
+    let stage = 'initialize';
     try {
       const path = new URL(request.url).pathname;
       if (request.method !== 'POST' || !['/checkout', '/close'].includes(path))
@@ -87,6 +88,7 @@ export class BillingCoordinator extends DurableObject<Env> {
           503,
           'Billing verification is temporarily unavailable.',
         );
+      stage = 'stripe_client';
       const stripe = new Stripe(this.env.STRIPE_SECRET_KEY, {
         httpClient: Stripe.createFetchHttpClient(),
         timeout: 8000,
@@ -127,6 +129,7 @@ export class BillingCoordinator extends DurableObject<Env> {
         );
       let customer = profile.stripeCustomerId;
       if (!customer && data && user) {
+        stage = 'create_customer';
         const created = await stripe.customers.create(
           { email: user.email, metadata: { profileId: profile.id } },
           { idempotencyKey: `customer:${profile.id}` },
@@ -138,6 +141,7 @@ export class BillingCoordinator extends DurableObject<Env> {
           .bind(customer, profile.id)
           .run();
       }
+      stage = 'recover_checkout';
       const attempt = await this.ctx.storage.get<Attempt>('checkout');
       const pending = attempt ? await this.resume(stripe, attempt) : null;
       if (
@@ -162,6 +166,7 @@ export class BillingCoordinator extends DurableObject<Env> {
           throw membershipExists();
       }
       if (customer) {
+        stage = 'list_subscriptions';
         const subscriptions = await stripe.subscriptions.list({
           customer,
           status: 'all',
@@ -207,6 +212,7 @@ export class BillingCoordinator extends DurableObject<Env> {
         },
       };
       await this.ctx.storage.put('checkout', next);
+      stage = 'create_checkout';
       const checkout = await stripe.checkout.sessions.create(next.params, {
         idempotencyKey: id,
       });
@@ -216,6 +222,23 @@ export class BillingCoordinator extends DurableObject<Env> {
       });
       return json({ url: checkout.url });
     } catch (error) {
+      if (!(error instanceof ApiError) && !(error instanceof z.ZodError)) {
+        const diagnostic = error as {
+          name?: string;
+          type?: string;
+          code?: string;
+          statusCode?: number;
+          requestId?: string;
+        };
+        console.error('billing_checkout_failed', {
+          stage,
+          name: diagnostic?.name,
+          type: diagnostic?.type,
+          code: diagnostic?.code,
+          status: diagnostic?.statusCode,
+          requestId: diagnostic?.requestId,
+        });
+      }
       return json(
         {
           error:
