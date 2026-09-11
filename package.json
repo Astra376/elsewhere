@@ -22,6 +22,7 @@
     "test:integration": "node scripts/integration.mjs",
     "test:browser": "playwright test",
     "deploy:api": "wrangler deploy --config wrangler.api.production.jsonc --keep-vars",
+    "deploy:web": "wrangler deploy --config wrangler.web.production.jsonc --keep-vars",
     "db:remote": "wrangler d1 migrations apply elsewhere-db --remote --config wrangler.api.production.jsonc",
     "check": "npm run typecheck && npm run lint && npm test && npm run test:providers && npm run build:api && npm run build"
   },

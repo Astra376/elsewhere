@@ -32,8 +32,8 @@ Provider tests use simulated email and Stripe responses inside the Cloudflare ru
 
 ## Deployment and operations
 
-Start with [the ChatUp launch steps](docs/LAUNCH.md). See also [the deployment runbook](docs/OPERATIONS.md), [architecture and launch research](docs/ARCHITECTURE-RESEARCH.md), and [security policy](SECURITY.md). Production credentials belong in Cloudflare Worker secrets and Sites environment variables, never in browser bundles or git. The repository's production Wrangler configuration includes resource identifiers, not credentials.
+Start with [the ChatUp launch steps](docs/LAUNCH.md). See also [the deployment runbook](docs/OPERATIONS.md), [architecture and launch research](docs/ARCHITECTURE-RESEARCH.md), and [security policy](SECURITY.md). Production credentials belong in Cloudflare Worker secrets, never in browser bundles or git. The repository's production Wrangler configuration includes resource identifiers, not credentials.
 
-The API has been provisioned on Cloudflare with D1, R2, Durable Objects, TURN, and an hourly maintenance schedule. The frontend is deployed through Sites on Cloudflare infrastructure. GitHub Actions validates changes and provides an explicit API deployment workflow; automatic deployment is enabled only after the repository's Cloudflare build credentials are connected.
+The API has been provisioned on Cloudflare with D1, R2, Durable Objects, TURN, and an hourly maintenance schedule. The frontend is deployed directly to the Cloudflare `chatup-web` Worker at https://chatup.chat using `npm run build` and `npm run deploy:web`. GitHub Actions validates changes and provides an explicit API deployment workflow; automatic deployment is enabled only after the repository's Cloudflare build credentials are connected.
 
-This is an owner-only preview until provider activation, operator details, moderation operations, and launch checks are completed. Search rankings and advertising approval are not guaranteed.
+The website is public. Provider activation, moderation operations, and the remaining launch checks must be completed before advertising their corresponding features. Search rankings and advertising approval are not guaranteed.

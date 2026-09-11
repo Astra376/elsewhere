@@ -5,9 +5,9 @@
 | Resource                          | Identifier                                             |
 | --------------------------------- | ------------------------------------------------------ |
 | GitHub repository                 | `Astra376/elsewhere` (private)                         |
-| Site                              | `appgprj_6aa16ce556c481918508081f5357f040`             |
+| Frontend Worker | `chatup-web` |
 | Launch domain                     | `https://chatup.chat`                                |
-| Sites address                     | `https://elsewhere-chat.astra376.chatgpt.site`         |
+| Frontend preview | `https://chatup-web.robloxproxy.workers.dev` |
 | API Worker                        | `elsewhere-api`                                        |
 | API origin                        | `https://elsewhere-api.robloxproxy.workers.dev`        |
 | Cloudflare account                | `6418d8b7a0996630c6eb574d93c85b54`                     |
@@ -21,7 +21,7 @@ Identifiers are not credentials. Local `.dev.vars`, deployment archives, test da
 
 ## First provider activation
 
-1. Follow [the ChatUp launch steps](LAUNCH.md). The canonical domain is `https://chatup.chat`; its Sites custom hostname and Cloudflare DNS records are provisioned. After DNS and TLS activate, set the API Worker's `APP_ORIGIN` to `https://chatup.chat`. Keep `API_ORIGIN` and the frontend's `API_BASE_URL` at the existing API URL. Provider redirects use `APP_ORIGIN`. Public branding is ChatUp; infrastructure names, session cookies, storage keys, and the proxy header retain their original identifiers to preserve compatibility.
+1. Follow [the ChatUp launch steps](LAUNCH.md). The canonical domain is `https://chatup.chat`; its Cloudflare Worker custom domain is active and the API Worker's `APP_ORIGIN` is `https://chatup.chat`. Keep `API_ORIGIN` and the frontend's `API_BASE_URL` at the existing API URL. Provider redirects use `APP_ORIGIN`. Public branding is ChatUp; infrastructure names, session cookies, storage keys, and the proxy header retain their original identifiers to preserve compatibility.
 2. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Register `{APP_ORIGIN}/api/auth/callback/google` as the OAuth callback; test a new account and an existing account separately.
 3. Set `RESEND_API_KEY` and a verified `EMAIL_FROM` domain. Test verification, guest linking, sign-in, password reset, expired links, and email delivery. Do not enable checkout before account verification works.
 4. Create recurring USD prices: Basic 5/month and 48/year, Plus 10/month and 96/year. Store their IDs in the four `STRIPE_*_MONTHLY/YEARLY` bindings. Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Point a Stripe webhook at `{API_ORIGIN}/api/billing/webhook` for `customer.subscription.created`, `.updated`, and `.deleted`; enable the customer billing portal. Test subscription creation, changes, cancellation, failure, replay, and SCA using Stripe test mode before live mode.
@@ -33,7 +33,7 @@ Identifiers are not credentials. Local `.dev.vars`, deployment archives, test da
 
 Run `npm ci`, `npm run check`, `npm run test:integration`, and the relevant browser tests. Commit the exact reviewed source. Apply new migrations with `npm run db:remote` before `npm run deploy:api`. Never rewrite an applied migration or point a test at the production database. The production configuration uses `--keep-vars` to preserve provider bindings managed outside source control.
 
-Frontend releases use Sites: build, push the committed source with a short-lived credential, package the built Worker/assets with the Sites packaging helper, save a version, and deploy that version. Preserve the owner-only access policy until launch dependencies are resolved. A backend proxy key is required on both sides; an incorrect key should fail closed.
+Frontend releases use `npm run build` followed by `npm run deploy:web`. This deploys built server modules and static assets directly to the `chatup-web` Worker, including the custom domain. No Sites login, publication, or usage is required. A backend proxy key is required on both Workers; an incorrect key fails closed. Keep the shared key in Worker secrets.
 
 The API's `v2` Durable Object migration adds `BillingCoordinator`, with one object per profile. Keep the earlier `v1` migration in the configuration. Regenerate binding declarations with `npm run types:api` after resource changes. The generated file contains binding types, never secret values.
 
@@ -45,7 +45,7 @@ Cloudflare has a repository connection for `Astra376/elsewhere`. A dedicated bui
 
 `/health` is a public availability check. Authenticated `/api/config` reports enabled integrations without exposing credentials. Workers observability records request failures; avoid logging message bodies, cookies, payment details, push keys, and provider tokens. Monitor 5xx/429 rates, queue time, D1 latency, socket reconnect frequency, TURN call success, and provider usage.
 
-For a faulty release, roll back the affected Worker to the last known good version through Cloudflare and redeploy the previous Sites version. Keep schema changes backward compatible; a code rollback does not reverse a D1 migration. Use Cloudflare's D1 recovery/export capabilities according to the account's actual retention and test restoration before relying on it. Do not promise a backup interval without verifying the account configuration.
+For a faulty release, roll back the affected Worker to the last known good version through Cloudflare using Cloudflare version rollback. Keep schema changes backward compatible; a code rollback does not reverse a D1 migration. Use Cloudflare's D1 recovery/export capabilities according to the account's actual retention and test restoration before relying on it. Do not promise a backup interval without verifying the account configuration.
 
 Rotate a leaked provider key at its provider, then replace its Worker secret. Rotate the proxy key on both frontend and API in a coordinated release. Rotating `AUTH_SECRET` invalidates sessions and should be announced operationally. Revoke or suspend abused accounts through the moderator interface; record reasons and handle appeals through support.
 
