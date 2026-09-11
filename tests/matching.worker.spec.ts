@@ -103,13 +103,14 @@ function match(
   profileId: string,
   action: 'join' | 'status',
   options?: MatchOptions,
+  location?: { country?: string; latitude?: number; longitude?: number },
 ) {
   return runtime.MATCHMAKER.get(
     runtime.MATCHMAKER.idFromName('match:en'),
   ).fetch(
     new Request('https://matchmaker/', {
       method: 'POST',
-      body: JSON.stringify({ profileId, action, options }),
+      body: JSON.stringify({ profileId, action, options, location }),
     }),
   );
 }
@@ -195,4 +196,123 @@ it('keeps either person’s interest deadline and removes a newly restricted wai
       .bind(restricted)
       .first(),
   ).toBeNull();
+});
+
+for (const [plan, cap] of [
+  ['free', 3],
+  ['basic', 5],
+  ['plus', 10],
+] as const) {
+  it(plan + ' enforces separate include/exclude limits', async () => {
+    const [id] = await seed({ queued: false, plan });
+    const list = ['AU', 'US', 'GB', 'CA', 'NZ', 'FR', 'DE', 'ES', 'IT', 'JP'];
+    expect(
+      (
+        await match(
+          id,
+          'join',
+          matchSchema.parse({ includeCountries: list.slice(0, cap) }),
+        )
+      ).status,
+    ).toBe(200);
+    if (cap < 10)
+      expect(
+        (
+          await match(
+            id,
+            'join',
+            matchSchema.parse({ excludeCountries: list.slice(0, cap + 1) }),
+          )
+        ).status,
+      ).toBe(403);
+  });
+}
+it('country matching is mutual and rejects conflicting preferences', async () => {
+  const [a] = await seed({ queued: false }),
+    [b] = await seed({ queued: false });
+  expect(
+    (
+      await match(
+        a,
+        'join',
+        matchSchema.parse({
+          includeCountries: ['US'],
+          excludeCountries: ['US'],
+        }),
+      )
+    ).status,
+  ).toBe(400);
+  await match(a, 'join', matchSchema.parse({ includeCountries: ['US'] }), {
+    country: 'AU',
+  });
+  expect(
+    await (
+      await match(b, 'join', matchSchema.parse({ excludeCountries: ['AU'] }), {
+        country: 'US',
+      })
+    ).json(),
+  ).toMatchObject({ status: 'waiting' });
+  expect(
+    await (
+      await match(b, 'join', matchSchema.parse({ includeCountries: ['AU'] }), {
+        country: 'US',
+      })
+    ).json(),
+  ).toMatchObject({ status: 'matched' });
+  const row = await runtime.DB.prepare(
+    'SELECT options FROM matchQueue WHERE profileId=?',
+  )
+    .bind(b)
+    .first<{ options: string }>();
+  expect(JSON.parse(row!.options).matchLocation).toBeUndefined();
+});
+it('Near me requires a paid plan and a selected position', async () => {
+  const [free] = await seed({ queued: false }),
+    [paid] = await seed({ queued: false, plan: 'basic' });
+  expect(
+    (
+      await match(
+        free,
+        'join',
+        matchSchema.parse({
+          nearMe: true,
+          location: { latitude: 0, longitude: 0 },
+        }),
+      )
+    ).status,
+  ).toBe(403);
+  expect(
+    (await match(paid, 'join', matchSchema.parse({ nearMe: true }))).status,
+  ).toBe(400);
+});
+it('Near me rejects distant peers and matches a nearby peer', async () => {
+  const [a] = await seed({ queued: false, plan: 'basic' }),
+    [b] = await seed({ queued: false });
+  await match(
+    a,
+    'join',
+    matchSchema.parse({
+      nearMe: true,
+      location: { latitude: -34.9, longitude: 138.6 },
+    }),
+    { country: 'AU' },
+  );
+  expect(
+    await (
+      await match(b, 'join', matchSchema.parse({}), {
+        country: 'AU',
+        latitude: -33.9,
+        longitude: 151.2,
+      })
+    ).json(),
+  ).toMatchObject({ status: 'waiting' });
+  expect(
+    await (
+      await match(b, 'join', matchSchema.parse({}), {
+        country: 'AU',
+        latitude: -34.8,
+        longitude: 138.6,
+      })
+    ).json(),
+  ).toMatchObject({ status: 'matched' });
 });

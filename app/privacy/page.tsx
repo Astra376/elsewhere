@@ -12,6 +12,17 @@ export default function Privacy() {
       intro="Here is what ChatUp collects, why it is needed, and what you control."
     >
       <section>
+        <h2>Location matching</h2>
+        <p>
+          Country and approximate location may be inferred from your connection
+          for matching. Near me uses a city you select or browser location you
+          explicitly allow. Coordinates are rounded to about 0.1 degrees and
+          held in the temporary matching queue, not shared with chat partners.
+          City searches are sent to Photon, using OpenStreetMap data. You can
+          turn off Near me at any time.
+        </p>
+      </section>
+      <section>
         <h2>Who this policy covers</h2>
         <p>
           This policy applies to ChatUp at chatup.chat and its installed web

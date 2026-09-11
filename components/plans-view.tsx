@@ -76,12 +76,15 @@ export function PlansView({
                 ? [
                     'Text, voice, and video matching',
                     '5 interests',
+                    'Include 3 countries · exclude 3',
                     '5 recent connections',
                     'Friends, chat rooms, and games',
                   ]
                 : key === 'basic'
                   ? [
                       'Everything in Free',
+                      'Include 5 countries · exclude 5',
+                      'Near me matching (100 km)',
                       'Priority matching',
                       'Gender preferences',
                       'Share images',
@@ -91,6 +94,7 @@ export function PlansView({
                     ]
                   : [
                       'Everything in Basic',
+                      'Include 10 countries · exclude 10',
                       'Share videos and images',
                       '20 total interests',
                       '25 recent connections',

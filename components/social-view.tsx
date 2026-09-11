@@ -1,4 +1,5 @@
 'use client';
+import { PlanRequirement } from './plan-requirement';
 import { useEffect, useState } from 'react';
 import {
   Check,
@@ -117,6 +118,12 @@ export function SocialView({
             : `Your ${plans[profile.plan].history} most recent matches. Keep a good connection going.`
         }
       />
+      {view === 'history' && (
+        <p className="field-note">
+          More history: <PlanRequirement plan="basic" /> 15 matches ·{' '}
+          <PlanRequirement plan="plus" /> 25 matches
+        </p>
+      )}
       {loading ? (
         <Loading label="Gathering your connections…" />
       ) : loadError ? (

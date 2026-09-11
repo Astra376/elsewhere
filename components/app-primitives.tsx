@@ -1,4 +1,5 @@
 'use client';
+import { PlanRequirement } from './plan-requirement';
 import { LoaderCircle, Sparkles } from 'lucide-react';
 import {
   Select,
@@ -46,16 +47,20 @@ export function Choice({
   onChange,
   options,
   disabled = false,
+  requiredPlan,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   disabled?: boolean;
+  requiredPlan?: 'basic' | 'plus';
 }) {
   return (
     <div className="form-field">
-      <label>{label}</label>
+      <label>
+        {label} {requiredPlan && <PlanRequirement plan={requiredPlan} />}
+      </label>
       <Select
         value={value}
         onValueChange={(v) => v !== null && onChange(String(v))}
@@ -82,17 +87,21 @@ export function ToggleRow({
   checked,
   onChange,
   disabled = false,
+  requiredPlan,
 }: {
   title: string;
   description?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  requiredPlan?: 'basic' | 'plus';
 }) {
   return (
     <div className="toggle-row">
       <div>
-        <strong>{title}</strong>
+        <strong>
+          {title} {requiredPlan && <PlanRequirement plan={requiredPlan} />}
+        </strong>
         {description && <p>{description}</p>}
       </div>
       <Switch

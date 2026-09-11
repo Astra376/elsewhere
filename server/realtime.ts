@@ -1,3 +1,4 @@
+import { locationCompatible, type MatchLocation } from '../lib/location';
 import { DurableObject } from 'cloudflare:workers';
 import { z } from 'zod';
 import {
@@ -577,6 +578,7 @@ export class Matchmaker extends DurableObject<Env> {
         profileId: string;
         action: 'join' | 'status' | 'cancel';
         options?: MatchOptions;
+        location?: MatchLocation;
       };
       const profile = await getProfile(this.env, body.profileId);
       const now = Date.now();
@@ -626,7 +628,62 @@ export class Matchmaker extends DurableObject<Env> {
         if (!profile.acceptedAt)
           throw new ApiError(403, 'Accept the terms before matching.');
         if (own?.chatId) return json({ status: 'matched', chatId: own.chatId });
-        const options = matchSchema.parse(body.options);
+        const parsed = matchSchema.parse(body.options);
+        const options = {
+          ...parsed,
+          matchLocation: {
+            ...body.location,
+            ...(parsed.nearMe ? parsed.location : {}),
+          },
+        };
+        if (
+          new Set(options.includeCountries).size !==
+            options.includeCountries.length ||
+          new Set(options.excludeCountries).size !==
+            options.excludeCountries.length ||
+          options.includeCountries.length > plans[profile.plan].countries ||
+          options.excludeCountries.length > plans[profile.plan].countries
+        )
+          throw new ApiError(
+            403,
+            'Your plan has fewer country slots.',
+            'plan_required',
+          );
+        if (
+          options.includeCountries.some((c) =>
+            options.excludeCountries.includes(c),
+          )
+        )
+          throw new ApiError(
+            400,
+            'A country cannot be both included and excluded.',
+          );
+        if (options.nearMe && profile.plan === 'free')
+          throw new ApiError(
+            403,
+            'Near me requires Basic or Plus.',
+            'plan_required',
+          );
+        if (options.nearMe && !options.location)
+          throw new ApiError(
+            400,
+            'Choose your city or allow location access first.',
+          );
+        if (
+          (options.nearMe ||
+            options.includeCountries.length ||
+            options.excludeCountries.length) &&
+          options.partnerType !== 'human'
+        )
+          throw new ApiError(400, 'Location preferences require People only.');
+        // Keep only coarse coordinates in the temporary matchmaking queue.
+        for (const key of ['latitude', 'longitude'] as const) {
+          const value = options.matchLocation[key];
+          if (typeof value === 'number' && Number.isFinite(value))
+            options.matchLocation[key] = Math.round(value * 10) / 10;
+          else delete options.matchLocation[key];
+        }
+        delete options.location;
         if (options.interests.length > plans[profile.plan].interests)
           throw new ApiError(403, 'Your plan has fewer interest slots.');
         if (options.genderFilter !== 'any' && profile.plan === 'free')
@@ -670,10 +727,9 @@ export class Matchmaker extends DurableObject<Env> {
       const options = matchSchema.parse(JSON.parse(own.options));
       // Filter eligibility before limiting the result. A fixed prefix of the
       // queue can indefinitely hide compatible people with uncommon interests.
-      const candidate =
-        options.partnerType === 'ai'
-          ? null
-          : await this.env.DB.prepare(`
+      let candidate: QueueRow | null = null;
+      for (let offset = 0; options.partnerType !== 'ai'; offset += 100) {
+        const batch = await this.env.DB.prepare(`
         SELECT q.* FROM matchQueue q JOIN profiles p ON p.id=q.profileId
         WHERE q.mode=? AND q.profileId<>? AND q.chatId IS NULL AND q.heartbeatAt>?
           AND p.standing NOT IN ('suspended','limited')
@@ -687,22 +743,36 @@ export class Matchmaker extends DurableObject<Env> {
             OR EXISTS (SELECT 1 FROM json_each(q.options,'$.interests') theirs
               JOIN json_each(?) mine ON mine.value=theirs.value))
         ORDER BY CASE p.plan WHEN 'plus' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC,q.joinedAt ASC
-        LIMIT 1
+        LIMIT 100 OFFSET ?
       `)
-              .bind(
-                own.mode,
-                profile.id,
-                now - 20000,
-                options.genderFilter,
-                options.genderFilter,
-                profile.gender,
-                profile.id,
-                profile.id,
-                Number(interestsRequired(options, own.joinedAt, now)),
-                now,
-                JSON.stringify(options.interests),
-              )
-              .first<QueueRow>();
+          .bind(
+            own.mode,
+            profile.id,
+            now - 20000,
+            options.genderFilter,
+            options.genderFilter,
+            profile.gender,
+            profile.id,
+            profile.id,
+            Number(interestsRequired(options, own.joinedAt, now)),
+            now,
+            JSON.stringify(options.interests),
+            offset,
+          )
+          .all<QueueRow>();
+        const ownLocation = JSON.parse(own.options).matchLocation ?? {};
+        candidate =
+          batch.results.find((row) => {
+            const other = JSON.parse(row.options);
+            return locationCompatible(
+              options,
+              ownLocation,
+              other,
+              other.matchLocation ?? {},
+            );
+          }) ?? null;
+        if (candidate || batch.results.length < 100) break;
+      }
       const persona = [...aiPersonas].sort(
         (a, b) =>
           sharedInterests([...b.interests], options.interests).length -
@@ -738,7 +808,7 @@ export class Matchmaker extends DurableObject<Env> {
           'INSERT INTO members (chatId,profileId,joinedAt) VALUES (?,?,?)',
         ).bind(chatId, profile.id, now),
         this.env.DB.prepare(
-          'UPDATE matchQueue SET chatId=? WHERE profileId=?',
+          "UPDATE matchQueue SET chatId=?,options=json_remove(options,'$.matchLocation','$.location') WHERE profileId=?",
         ).bind(chatId, profile.id),
       ];
       if (candidate)
@@ -747,7 +817,7 @@ export class Matchmaker extends DurableObject<Env> {
             'INSERT INTO members (chatId,profileId,joinedAt) VALUES (?,?,?)',
           ).bind(chatId, candidate.profileId, now),
           this.env.DB.prepare(
-            'UPDATE matchQueue SET chatId=? WHERE profileId=?',
+            "UPDATE matchQueue SET chatId=?,options=json_remove(options,'$.matchLocation','$.location') WHERE profileId=?",
           ).bind(chatId, candidate.profileId),
         );
       await this.env.DB.batch(statements);

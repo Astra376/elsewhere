@@ -341,6 +341,7 @@ export function AccountSettings({
             <h2>Your profile, your boundaries.</h2>
             <ToggleRow
               title="Show my membership badge"
+              requiredPlan="basic"
               description="Your Basic or Plus badge appears beside your name."
               checked={profile.preferences.badgeVisible}
               onChange={(v) => void onPreference('badgeVisible', v)}
@@ -455,10 +456,20 @@ export function AccountSettings({
             />
             <ToggleRow
               title="Dark mode"
-              description="A softer glow for late-night conversations."
+              description="Follows your system until you choose a theme."
               checked={profile.preferences.darkMode}
               onChange={(v) => void onPreference('darkMode', v)}
             />
+            <button
+              type="button"
+              className="button button-small"
+              onClick={() => {
+                localStorage.removeItem('elsewhere-theme');
+                window.dispatchEvent(new Event('storage'));
+              }}
+            >
+              Use system theme
+            </button>
           </section>
           <section className="settings-card settings-list">
             <h2>Take ChatUp with you.</h2>

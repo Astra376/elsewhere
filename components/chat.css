@@ -3400,3 +3400,85 @@
     padding: 24px 18px;
   }
 }
+
+.plan-requirement {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.location-preferences {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.location-preferences h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.location-preferences select,
+.city-search input {
+  width: 100%;
+  min-width: 0;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 13px;
+}
+.country-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 5px 0;
+}
+.country-chips button {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  background: var(--muted);
+  color: var(--foreground);
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.nearby-controls {
+  display: grid;
+  gap: 10px;
+}
+.city-search {
+  display: flex;
+  gap: 6px;
+}
+.city-search button {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.city-results {
+  list-style: none;
+  padding: 0;
+  max-height: 200px;
+  overflow: auto;
+}
+.city-results button {
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.app-loading,
+.app-error {
+  background: var(--background);
+  color: var(--foreground);
+}

@@ -9,6 +9,19 @@ async function proxy(request: Request) {
   const path = new URL(request.url);
   const target = new URL(path.pathname + path.search, base);
   const headers = new Headers(request.headers);
+  const geo = (
+    request as Request & {
+      cf?: { country?: string; latitude?: string; longitude?: string };
+    }
+  ).cf;
+  for (const [key, value] of Object.entries({
+    'X-ChatUp-Country': geo?.country,
+    'X-ChatUp-Latitude': geo?.latitude,
+    'X-ChatUp-Longitude': geo?.longitude,
+  })) {
+    headers.delete(key);
+    if (value) headers.set(key, value);
+  }
   headers.delete('host');
   headers.delete('content-length');
   headers.set(

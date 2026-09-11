@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { countryCodes } from './location';
 
 export const plans = {
   free: {
@@ -9,6 +10,7 @@ export const plans = {
     images: false,
     videos: false,
     priority: 0,
+    countries: 3,
   },
   basic: {
     name: 'Basic',
@@ -18,6 +20,7 @@ export const plans = {
     images: true,
     videos: false,
     priority: 1,
+    countries: 5,
   },
   plus: {
     name: 'Plus',
@@ -27,6 +30,7 @@ export const plans = {
     images: true,
     videos: true,
     priority: 2,
+    countries: 10,
   },
 } as const;
 export type Plan = keyof typeof plans;
@@ -82,7 +86,19 @@ export const profileSchema = z
     preferences: preferencesSchema,
   })
   .partial();
+const countrySchema = z
+  .string()
+  .refine((v) => countryCodes.includes(v), 'Choose a valid country.');
 export const matchSchema = z.object({
+  includeCountries: z.array(countrySchema).max(10).default([]),
+  excludeCountries: z.array(countrySchema).max(10).default([]),
+  nearMe: z.boolean().default(false),
+  location: z
+    .object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+    })
+    .optional(),
   mode: z.enum(['text', 'voice', 'video']).default('text'),
   interests: z.array(interestSchema).max(20).default([]),
   interestMatch: z.boolean().default(false),

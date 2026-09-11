@@ -1,3 +1,4 @@
+import { searchCities } from './location';
 import { z } from 'zod';
 import { createAuth } from './auth';
 import {
@@ -209,6 +210,8 @@ export default {
             .includes(session.user.id),
         });
       }
+      if (path === '/api/locations/cities' && request.method === 'GET')
+        return await searchCities(request, env, profile);
       if (path === '/api/consent' && request.method === 'POST') {
         z.object({
           adult: z.literal(true),
@@ -587,6 +590,15 @@ export default {
               profileId: profile.id,
               action: 'join',
               options: body,
+              location: {
+                country: request.headers.get('X-ChatUp-Country') ?? undefined,
+                latitude: request.headers.has('X-ChatUp-Latitude')
+                  ? Number(request.headers.get('X-ChatUp-Latitude'))
+                  : undefined,
+                longitude: request.headers.has('X-ChatUp-Longitude')
+                  ? Number(request.headers.get('X-ChatUp-Longitude'))
+                  : undefined,
+              },
             }),
           }),
         );

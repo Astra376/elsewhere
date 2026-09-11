@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Brand } from './brand';
 import { api } from '@/lib/client';
+import { preferredDark, applyTheme } from '@/lib/theme';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 const interests = [
   '🎧 Music',
@@ -63,12 +64,11 @@ export function Landing() {
   const [dark, setDark] = useState(false);
   const [yearly, setYearly] = useState(false);
   useEffect(() => {
-    setDark(localStorage.getItem('elsewhere-theme') === 'dark');
+    const sync = () => setDark(preferredDark());
+    sync();
+    window.addEventListener('chatup-theme', sync);
+    return () => window.removeEventListener('chatup-theme', sync);
   }, []);
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('elsewhere-theme', dark ? 'dark' : 'light');
-  }, [dark]);
   const chatLink = `/chat?mode=${mode}${selected.length ? `&interests=${encodeURIComponent(selected.map((x) => x.split(' ').slice(1).join(' ')).join(','))}` : ''}`;
   return (
     <div className="landing">
@@ -85,7 +85,12 @@ export function Landing() {
         <div className="header-actions">
           <button
             className="icon-button"
-            onClick={() => setDark(!dark)}
+            onClick={() => {
+              const next = !dark;
+              setDark(next);
+              applyTheme(next);
+              localStorage.setItem('elsewhere-theme', next ? 'dark' : 'light');
+            }}
             aria-label={dark ? 'Use light theme' : 'Use dark theme'}
           >
             {dark ? <Sun /> : <Moon />}
@@ -371,6 +376,7 @@ export function Landing() {
                   '5 interests to find common ground',
                   'Friends, rooms & games',
                   '5 recent matches',
+                  'Include 3 countries · exclude 3',
                 ],
               },
               {
@@ -380,6 +386,8 @@ export function Landing() {
                 items: [
                   'Everything in Free',
                   'Priority matching & gender filter',
+                  'Include 5 countries · exclude 5',
+                  'Near me matching',
                   'Send images in your chats',
                   '8 extra interests · 15 recent matches',
                   'Optional Basic profile badge',
@@ -392,6 +400,7 @@ export function Landing() {
                 items: [
                   'Everything in Basic',
                   'Send videos & images',
+                  'Include 10 countries · exclude 10',
                   '15 extra interests · 25 recent matches',
                   'Optional Plus badge',
                   'Ad-free experience & priority support',

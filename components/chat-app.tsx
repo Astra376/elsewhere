@@ -1,4 +1,7 @@
 'use client';
+import { preferredDark, applyTheme } from '@/lib/theme';
+import { LocationPreferences } from './location-preferences';
+import { PlanRequirement } from './plan-requirement';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -113,6 +116,9 @@ const navigation = [
   { id: 'games', label: 'Play together', icon: Gamepad2 },
 ] as const;
 const defaultOptions: MatchOptions = {
+  includeCountries: [],
+  excludeCountries: [],
+  nearMe: false,
   mode: 'text',
   interests: [],
   interestMatch: false,
@@ -178,6 +184,8 @@ export function ChatApp() {
         method: 'PATCH',
         body: JSON.stringify(change),
       });
+      if (change.preferences?.darkMode === undefined)
+        saved.preferences.darkMode = preferredDark();
       setProfile(saved);
       return saved;
     });
@@ -193,10 +201,7 @@ export function ChatApp() {
           },
         });
         if (key === 'darkMode') {
-          document.documentElement.classList.toggle(
-            'dark',
-            saved.preferences.darkMode,
-          );
+          applyTheme(saved.preferences.darkMode);
           localStorage.setItem(
             'elsewhere-theme',
             saved.preferences.darkMode ? 'dark' : 'light',
@@ -342,6 +347,7 @@ export function ChatApp() {
           api<AppConfig>('/config'),
         ]);
         if (!mounted.current) return;
+        me.preferences.darkMode = preferredDark();
         setProfile(me);
         setConfig(settings);
         setAgeConfirmed(!!me.acceptedAt);
@@ -361,15 +367,7 @@ export function ChatApp() {
             : me.interests,
           interestMatch: incoming.length > 0,
         });
-        const theme = localStorage.getItem('elsewhere-theme');
-        document.documentElement.classList.toggle(
-          'dark',
-          theme ? theme === 'dark' : me.preferences.darkMode,
-        );
-        if (theme && (theme === 'dark') !== me.preferences.darkMode)
-          void updateProfile({
-            preferences: { darkMode: theme === 'dark' },
-          }).catch(() => {});
+        applyTheme(preferredDark());
         const active =
           params.get('conversation') ??
           sessionStorage.getItem('elsewhere-active-chat');
@@ -495,6 +493,13 @@ export function ChatApp() {
     setBusy(true);
     try {
       if (chat && !chat.endedAt) await leaveChat();
+      if (options.nearMe && !options.location) {
+        flash(
+          'Choose a city or allow location access in matching preferences.',
+        );
+        setFiltersOpen(true);
+        return;
+      }
       await updateProfile({ interests: options.interests });
       const result = await api<{
         status: string;
@@ -653,7 +658,7 @@ export function ChatApp() {
       </div>
       <div className="form-field">
         <label>
-          Your interests{' '}
+          Your interests
           <span>
             {options.interests.length}/
             {profile ? plans[profile.plan].interests : 5}
@@ -703,6 +708,10 @@ export function ChatApp() {
           </button>
         </form>
       </div>
+      <p className="field-note">
+        Extra interest slots: <PlanRequirement plan="basic" /> 13 total ·{' '}
+        <PlanRequirement plan="plus" /> 20 total
+      </p>
       <ToggleRow
         title="Match my interests"
         description="Start with something in common."
@@ -746,6 +755,7 @@ export function ChatApp() {
       </p>
       <Choice
         label="Gender preference"
+        requiredPlan="basic"
         value={options.genderFilter}
         onChange={(v) => {
           if (profile?.plan === 'free' && v !== 'any') {
@@ -765,6 +775,12 @@ export function ChatApp() {
           { value: 'nonbinary', label: 'Nonbinary people' },
         ]}
       />
+      <LocationPreferences
+        options={options}
+        plan={profile?.plan ?? 'free'}
+        onChange={setOptions}
+        onUpgrade={() => navigate('plans')}
+      />
       <div className="rail-promise">
         <ShieldCheck size={19} />
         <p>
@@ -775,6 +791,19 @@ export function ChatApp() {
       </div>
     </div>
   );
+  useEffect(() => {
+    const sync = () =>
+      setProfile((p) =>
+        p
+          ? {
+              ...p,
+              preferences: { ...p.preferences, darkMode: preferredDark() },
+            }
+          : p,
+      );
+    window.addEventListener('chatup-theme', sync);
+    return () => window.removeEventListener('chatup-theme', sync);
+  }, []);
   if (bootError)
     return (
       <div className="app-error">
@@ -1333,6 +1362,7 @@ export function ChatApp() {
                               }
                             >
                               <ImagePlus />
+                              <PlanRequirement plan="basic" />
                             </button>
                             <textarea
                               value={draft}
@@ -1389,7 +1419,9 @@ export function ChatApp() {
                             }}
                           />
                           <p className="composer-hint">
-                            Enter to send · Shift + Enter for a new line
+                            <PlanRequirement plan="basic" /> Images ·{' '}
+                            <PlanRequirement plan="plus" /> Videos · Enter to
+                            send · Shift + Enter for a new line
                             <span>{draft.length}/4000</span>
                           </p>
                         </>
