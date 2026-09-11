@@ -20,6 +20,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { Brand } from './brand';
+import { api } from '@/lib/client';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 const interests = [
   '🎧 Music',
@@ -30,6 +31,33 @@ const interests = [
   '💭 Deep talks',
 ];
 export function Landing() {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let controller: AbortController | undefined;
+    const refreshSession = async () => {
+      controller?.abort();
+      const current = new AbortController();
+      controller = current;
+      try {
+        const session = await api<{ user?: { isAnonymous?: boolean } } | null>(
+          '/auth/get-session',
+          { cache: 'no-store', signal: current.signal },
+        );
+        if (!current.signal.aborted)
+          setSignedIn(Boolean(session?.user && !session.user.isAnonymous));
+      } catch {
+        // Keep the last known state during a temporary connection failure.
+      }
+    };
+    void refreshSession();
+    window.addEventListener('focus', refreshSession);
+    window.addEventListener('pageshow', refreshSession);
+    return () => {
+      controller?.abort();
+      window.removeEventListener('focus', refreshSession);
+      window.removeEventListener('pageshow', refreshSession);
+    };
+  }, []);
   const [mode, setMode] = useState('text');
   const [selected, setSelected] = useState<string[]>([]);
   const [dark, setDark] = useState(false);
@@ -62,8 +90,21 @@ export function Landing() {
           >
             {dark ? <Sun /> : <Moon />}
           </button>
-          <a className="sign-in-link" href="/chat?auth=signin">
-            Log in
+          <a
+            className="sign-in-link"
+            href={
+              signedIn === false
+                ? '/chat?auth=signin'
+                : signedIn
+                  ? '/chat?view=settings'
+                  : '/chat'
+            }
+          >
+            {signedIn === false
+              ? 'Log in'
+              : signedIn
+                ? 'My account'
+                : 'Open chat'}
           </a>
           <a className="button button-dark button-small" href={chatLink}>
             Let’s talk <ArrowUpRight size={16} />
