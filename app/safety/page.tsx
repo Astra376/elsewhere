@@ -55,12 +55,11 @@ export default function Safety() {
         </p>
       </section>
       <section>
-        <h2>No hidden AI</h2>
+        <h2>Who you meet</h2>
         <p>
-          ChatUp’s AI companions always have an AI label. They cannot
-          participate in voice or video. Choose People only to exclude them.
-          Report a human user impersonating another person or trying to mislead
-          you.
+          Matching depends on who is around. Treat every stranger as a stranger:
+          do not share addresses, payment details, or other identifying
+          information. Report anyone trying to mislead you.
         </p>
       </section>
       <section>

@@ -19,7 +19,7 @@ The browser talks to a same-origin server proxy. The separate API Worker owns au
 - Stripe Checkout with durable retry recovery and duplicate-purchase protection, billing portal, and verified/replay-safe subscription webhooks. Display prices are USD 5/10 monthly or 48/96 annually; configure matching Stripe prices before enabling checkout.
 - Relayed one-to-one WebRTC calls; Cloudflare RealtimeKit group-call integration; no recording or transcription enabled by the app.
 - Tic-tac-toe and Connect Four with server-authoritative moves, turns, and revisions.
-- Clearly labeled, opt-in OpenRouter AI text companions. Human-only is the default.
+- Text matching can fill quiet queues with ordinary-looking conversation partners.
 - Private R2 attachments with byte-signature validation, size/plan/access checks, default image blur, and video range delivery.
 - Blocking, reporting with evidence snapshots, five account standing states, moderator review, support requests, role checks, audit records, and opt-in generic Web Push alerts.
 - Canonical metadata, sitemap, robots rules, public policy pages, and no indexing of private conversations.
