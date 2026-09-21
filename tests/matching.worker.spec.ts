@@ -27,7 +27,7 @@ const strict = matchSchema.parse({
   interestMatch: true,
   waitSeconds: 0,
 });
-it('AI opt-in respects an unlimited interest-only wait', async () => {
+it('bot fill respects an unlimited interest-only wait', async () => {
   const [seeker] = await seed({ queued: false });
   expect(
     await (

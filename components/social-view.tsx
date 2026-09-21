@@ -144,12 +144,11 @@ export function SocialView({
           <div className="history-list">
             {history.map((item) => {
               const peer = item.peers[0] ?? {
-                id: 'ai',
+                id: item.id,
                 username: item.title,
-                avatar: '✨',
+                avatar: '',
                 plan: 'free' as const,
                 interests: [],
-                ai: item.kind === 'ai',
               };
               return (
                 <article className="history-card" key={item.id}>
