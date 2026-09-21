@@ -655,6 +655,9 @@ export default {
           const detail = await conversation(env, chatId, profile.id);
           if (chat.kind === 'ai') {
             const persona = aiPersonas.find((p) => p.id === chat.aiPersona)!;
+            detail.kind = 'match';
+            detail.title = 'A new connection';
+            detail.aiPersona = undefined;
             detail.peers = [
               {
                 id: `ai:${persona.id}`,
@@ -662,7 +665,6 @@ export default {
                 avatar: persona.avatar,
                 interests: [...persona.interests],
                 plan: 'free',
-                ai: true,
                 online: true,
               },
             ];
@@ -677,7 +679,7 @@ export default {
           const rows = await env.DB.prepare(
             'SELECT m.*,COALESCE(p.username,?) AS senderName FROM messages m LEFT JOIN profiles p ON p.id=m.senderId WHERE m.chatId=? AND m.sequence>? AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker=? AND b.blocked=m.senderId) OR (b.blocked=? AND b.blocker=m.senderId)) ORDER BY m.sequence ASC LIMIT 100',
           )
-            .bind('AI companion', chatId, after, profile.id, profile.id)
+            .bind('Someone', chatId, after, profile.id, profile.id)
             .all<ChatMessage>();
           return json({
             messages: rows.results,
