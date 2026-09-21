@@ -477,7 +477,7 @@ export function Landing() {
               ],
               [
                 'Who will I meet?',
-                'Meet other adults through shared interests or chance. You can also choose AI companions in text mode. Every AI companion is visibly labeled, and human-only matching is always available.',
+                'Meet other adults through shared interests or chance. Matching depends on who is around.',
               ],
               [
                 'Can I keep a good conversation going?',

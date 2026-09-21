@@ -358,14 +358,6 @@ export function AccountSettings({
               checked={profile.preferences.friendRequests}
               onChange={(v) => void onPreference('friendRequests', v)}
             />
-            <div className="settings-text">
-              <h3>AI conversations are your choice.</h3>
-              <p>
-                Choose “People only” in matching preferences to meet human
-                participants. AI companions are always labeled and only
-                available in text mode.
-              </p>
-            </div>
           </section>
           <section className="settings-card settings-list">
             <h2>Blocked accounts</h2>
