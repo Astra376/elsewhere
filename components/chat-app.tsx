@@ -310,12 +310,8 @@ export function ChatApp() {
         throw new Error(
           'Cancel the current search before changing preferences.',
         );
-      if (next.mode !== 'text' && next.partnerType !== 'human')
-        throw new Error('AI companions are text-only.');
       if (next.genderFilter !== 'any' && profile.plan === 'free')
         throw new Error('A membership is required for that filter.');
-      if (next.partnerType !== 'human' && !config?.ai)
-        throw new Error('AI companions are not available yet.');
       const saved = await updateProfile({ interests: next.interests });
       flushSync(() => {
         setOptions({ ...next, interests: saved.interests });
@@ -673,7 +669,7 @@ export function ChatApp() {
   }
   async function addFriend() {
     const peer = chat?.peers[0];
-    if (!peer || peer.ai) return;
+    if (!peer || peer.id.startsWith('ai:')) return;
     try {
       await api('/friends/request', {
         method: 'POST',
@@ -789,25 +785,6 @@ export function ChatApp() {
           { value: '0', label: 'As long as it takes' },
         ]}
       />
-      <Choice
-        label="Who would you like to meet?"
-        value={options.partnerType}
-        disabled={options.mode !== 'text'}
-        onChange={(v) =>
-          setOptions((o) => ({
-            ...o,
-            partnerType: v as MatchOptions['partnerType'],
-          }))
-        }
-        options={[
-          { value: 'human', label: 'People only' },
-          { value: 'anyone', label: 'People & AI companions' },
-          { value: 'ai', label: 'An AI companion' },
-        ]}
-      />
-      <p className="field-note">
-        AI companions are always labeled and only join text chats.
-      </p>
       <Choice
         label="Gender preference"
         requiredPlan="basic"
@@ -1066,7 +1043,7 @@ export function ChatApp() {
                     </div>
                   )}
                   <div className="toolbar-actions">
-                    {chat && !chat.endedAt && peer && !peer.ai && (
+                    {chat && !chat.endedAt && peer && !peer.id.startsWith('ai:') && (
                       <>
                         <button
                           className="icon-button"
@@ -1124,8 +1101,7 @@ export function ChatApp() {
                         setOptions((o) => ({
                           ...o,
                           mode: String(value) as MatchOptions['mode'],
-                          partnerType:
-                            value === 'text' ? o.partnerType : 'human',
+                          partnerType: 'human',
                         }))
                       }
                     >
@@ -1183,27 +1159,6 @@ export function ChatApp() {
                         </span>
                         <ArrowUpRight size={15} />
                       </button>
-                      <button
-                        onClick={() => {
-                          setOptions((o) => ({
-                            ...o,
-                            mode: 'text',
-                            partnerType: 'ai',
-                          }));
-                          flash(
-                            config.ai
-                              ? 'AI companion selected. Start when you’re ready.'
-                              : 'AI companions will be available when the service is connected.',
-                          );
-                        }}
-                      >
-                        <Sparkles size={18} />
-                        <span>
-                          A different kind of chat
-                          <small>Meet an AI companion</small>
-                        </span>
-                        <ArrowUpRight size={15} />
-                      </button>
                     </div>
                   </div>
                 )}
@@ -1250,16 +1205,6 @@ export function ChatApp() {
                 {chat && (
                   <>
                     <div className="conversation-scroll">
-                      {chat.kind === 'ai' && (
-                        <div className="ai-disclosure">
-                          <Sparkles size={16} />
-                          <span>
-                            You’re chatting with {peer?.username}, an AI
-                            companion. Replies may be inaccurate. Don’t share
-                            sensitive information.
-                          </span>
-                        </div>
-                      )}
                       {callOpen && (
                         <CallPanel
                           chat={chat}
@@ -1278,13 +1223,11 @@ export function ChatApp() {
                             : 'You found each other'}
                         </span>
                         <p>
-                          {chat.kind === 'ai'
-                            ? 'A new AI conversation starts here.'
-                            : peer?.interests.filter((i) =>
-                                  options.interests.includes(i),
-                                ).length
-                              ? `You both like ${peer.interests.filter((i) => options.interests.includes(i)).join(', ')}.`
-                              : 'A little hello can go a long way.'}
+                          {peer?.interests.filter((i) =>
+                            options.interests.includes(i),
+                          ).length
+                            ? `You both like ${peer.interests.filter((i) => options.interests.includes(i)).join(', ')}.`
+                            : 'A little hello can go a long way.'}
                         </p>
                       </div>
                       <div
@@ -1409,7 +1352,7 @@ export function ChatApp() {
                               type="button"
                               className="icon-button"
                               aria-label="Attach an image or video"
-                              disabled={busy || chat.kind === 'ai'}
+                              disabled={busy}
                               onClick={() =>
                                 profile.plan === 'free'
                                   ? navigate('plans')
@@ -1501,16 +1444,14 @@ export function ChatApp() {
                       <h3>{peer.username}</h3>
                       <Badge person={peer} />
                       <p>
-                        {peer.ai
-                          ? 'AI companion · Here for a conversation'
-                          : 'A new perspective. A new possibility.'}
+                        A new perspective. A new possibility.
                       </p>
                       <div className="lobby-chips">
                         {peer.interests.map((i) => (
                           <span key={i}># {i}</span>
                         ))}
                       </div>
-                      {!peer.ai && (
+                      {!peer.id.startsWith('ai:') && (
                         <button
                           className="button button-outline"
                           onClick={() => void addFriend()}
