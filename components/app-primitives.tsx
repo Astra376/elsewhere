@@ -1,6 +1,6 @@
 'use client';
 import { PlanRequirement } from './plan-requirement';
-import { LoaderCircle, Sparkles } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -32,12 +32,6 @@ export function Badge({
 }: {
   person: Pick<Peer, 'plan' | 'ai'> | Profile;
 }) {
-  if ('ai' in person && person.ai)
-    return (
-      <span className="badge badge-ai">
-        <Sparkles size={11} /> AI companion
-      </span>
-    );
   if (person.plan === 'free') return null;
   return <span className={`badge badge-${person.plan}`}>{person.plan}</span>;
 }

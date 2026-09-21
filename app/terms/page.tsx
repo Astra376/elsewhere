@@ -62,11 +62,10 @@ export default function Terms() {
       <section>
         <h2>AI, matching, and availability</h2>
         <p>
-          AI companions are labeled and appear only in text mode when you choose
-          a matching option that includes AI. AI replies can be inaccurate and
-          are not professional advice. Matching depends on who is available and
-          both participants’ preferences. Priority matching does not guarantee a
-          partner or a specific wait time.
+          Matching depends on who is available and both participants’
+          preferences. Some conversations may be with automated participants.
+          Replies can be inaccurate and are not professional advice. Priority
+          matching does not guarantee a partner or a specific wait time.
         </p>
         <p>
           Networks, browsers, devices, and providers can interrupt service. The

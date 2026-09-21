@@ -65,14 +65,11 @@ export default function Privacy() {
         </p>
       </section>
       <section>
-        <h2>AI companions</h2>
+        <h2>Automated replies</h2>
         <p>
-          AI participation is optional, clearly labeled, and limited to text
-          conversations. In an AI chat, recent message text is sent through
-          OpenRouter to the selected model provider to generate a reply.
-          Human-only conversations are not sent to OpenRouter. Avoid sharing
-          sensitive or identifying information with an AI companion. Provider
-          processing terms also apply.
+          Some text conversations may send recent message text through OpenRouter
+          to a model provider to generate a reply. Avoid sharing sensitive or
+          identifying information. Provider processing terms also apply.
         </p>
       </section>
       <section>
