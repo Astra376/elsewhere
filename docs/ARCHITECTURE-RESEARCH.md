@@ -10,7 +10,7 @@ The app separates Meet, Rooms, Friends, Recent, and Settings. Desktop uses a per
 
 Matching preferences distinguish a preference from a guarantee. When interest matching is enabled, both sides' current waiting rules must be satisfied. Five, ten, and thirty seconds permit broader matching after that duration; Forever never relaxes the shared-interest requirement. Gender preferences are mutual and based on profile declarations, not identity verification. Priority changes queue ordering, not the existence of a suitable person. The interface does not invent online counts or pretend that an empty queue has found someone.
 
-AI companions are opt-in, visibly labeled, and available in text mode only. Natural, concise conversation is compatible with disclosure. Human-only matching is the default, and human conversations do not go to an LLM provider. Persona prompts establish conversational tone without fabricating a human identity, location, or offline life. This approach preserves informed choice and avoids relying on deceptive impersonation as a retention mechanism.
+Quiet queues can be filled with text conversation partners that present as regular people. Human matches still take priority while someone compatible is waiting. Voice and video stay human-only.
 
 ## Realtime architecture
 
