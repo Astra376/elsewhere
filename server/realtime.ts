@@ -13,6 +13,7 @@ import {
   readPause,
   sharedInterests,
   typingHold,
+  isJunkLine,
   playMove,
   type MatchOptions,
   type RuntimePersona,
@@ -694,17 +695,22 @@ export class ChatRoom extends DurableObject<Env> {
         model: this.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4.1-flash',
         messages: [
           { role: 'system', content: personaPrompt(persona, kind) },
-          ...history.results.reverse().map((row) => ({
-            role: row.senderId.startsWith('ai:') ? 'assistant' : 'user',
-            content: row.text,
-          })),
+          ...history.results.reverse().flatMap((row) => {
+            if (row.senderId.startsWith('ai:') && isJunkLine(row.text)) return [];
+            return [
+              {
+                role: row.senderId.startsWith('ai:') ? 'assistant' : 'user',
+                content: row.text,
+              },
+            ];
+          }),
           ...(history.results.length
             ? []
             : [{ role: 'user', content: 'matched' }]),
         ],
-        max_tokens: 32,
-        temperature: 1.05,
-        reasoning: { enabled: false },
+        max_tokens: 48,
+        temperature: 0.9,
+        reasoning: { enabled: false, effort: 'none' },
         provider: { data_collection: 'deny' },
       }),
       signal: AbortSignal.timeout(12000),
@@ -714,7 +720,7 @@ export class ChatRoom extends DurableObject<Env> {
       choices?: { message?: { content?: string } }[];
     };
     return (body.choices?.[0]?.message?.content ?? '')
-      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/<think>[\s\S]*?(<\/think>|$)/gi, '')
       .trim();
   }
   async deliver(
