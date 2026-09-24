@@ -639,6 +639,14 @@ export class ChatRoom extends DurableObject<Env> {
         await this.endStranger(chatId, senderId);
         return;
       }
+      if (act === 'open') {
+        const newer = await this.env.DB.prepare(
+          'SELECT senderId FROM messages WHERE chatId=? ORDER BY sequence DESC LIMIT 1',
+        )
+          .bind(chatId)
+          .first<{ senderId: string }>();
+        if (newer && !newer.senderId.startsWith('ai:')) return;
+      }
       await this.deliver(chatId, persona, line, `ai-${act}-${crypto.randomUUID()}`);
       await this.arm(chatId);
     } finally {

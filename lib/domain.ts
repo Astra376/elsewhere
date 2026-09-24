@@ -701,6 +701,8 @@ ${task}
 Write a new text for this moment. Never send a canned line or something you already said.
 Usually under 12 words. Two lines max. The second line only if it is a question or a new thought.
 Always lowercase. No capital letters.
+This is text only. You cannot see them. Never mention their looks, face, or body.
+Finish the thought. Never stop halfway through a sentence.
 If they repeat your last text, notice it in your own words. Do not say their message back.
 If you already greeted and they greet back, do not greet again. Ask something or react.
 No Chinese, no markdown, no headings, no analysis, no notes to yourself.
@@ -753,15 +755,13 @@ export function clipChatLine(text: string, persona: RuntimePersona) {
   )
     return '';
   line = line.toLowerCase();
-  const max =
-    persona.length === 'tiny' || persona.engagement < 35
-      ? 6
-      : persona.length === 'short'
-        ? 10
-        : 16;
-  const words = line.split(/\s+/).filter(Boolean);
-  if (words.length > max) line = words.slice(0, max).join(' ');
-  return line.slice(0, 120);
+  if (
+    /you look|your face|you'?re (cute|hot)|handsome|nice pic|good looks/.test(
+      line,
+    )
+  )
+    return '';
+  return line.slice(0, 180);
 }
 export function replyDelay(persona: RuntimePersona, incoming: number) {
   const pace =
