@@ -611,7 +611,7 @@ export class ChatRoom extends DurableObject<Env> {
         .run();
       this.broadcast({
         type: 'ai_error',
-        error: 'They didn’t catch that. Try sending it again.',
+        error: 'They didn\u2019t catch that. Try sending it again.',
       });
     } finally {
       this.broadcast({
@@ -830,6 +830,8 @@ export class Matchmaker extends DurableObject<Env> {
           }) ?? null;
         if (candidate || batch.results.length < 100) break;
       }
+      if (options.partnerType === 'ai' && !this.env.OPENROUTER_API_KEY)
+        throw new ApiError(503, 'That is not available right now.');
       let persona: RuntimePersona | null = null;
       if (!candidate) {
         persona = await this.familiarPersona(profile.id, now);
