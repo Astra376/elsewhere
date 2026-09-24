@@ -511,39 +511,6 @@ export class ChatRoom extends DurableObject<Env> {
       await limit(this.env, `ai:${message.senderId}`, 300, 3600);
       let persona = parsePersona(active.aiPersona);
       senderIdBox.id = `ai:${persona.id}`;
-      const recent = await this.env.DB.prepare(
-        'SELECT senderId, text FROM messages WHERE chatId=? AND kind=? ORDER BY sequence DESC LIMIT 8',
-      )
-        .bind(chatId, 'text')
-        .all<{ senderId: string; text: string }>();
-      const lastBot =
-        recent.results.find((row) => row.senderId.startsWith('ai:'))?.text ??
-        '';
-      const greeted = recent.results.some(
-        (row) => row.senderId.startsWith('ai:') && isGreeting(row.text),
-      );
-      const copying =
-        !!lastBot && sameText(message.text, lastBot);
-      const scripted = copying
-        ? copyCall(persona)
-        : isGreeting(message.text) && greeted
-          ? moveOn(persona)
-          : '';
-      if (scripted) {
-        await this.pause(readPause(persona.pace));
-        const open = await this.env.DB.prepare(
-          'SELECT id FROM chats WHERE id=? AND endedAt IS NULL',
-        )
-          .bind(chatId)
-          .first();
-        if (!open) return;
-        await this.deliver(chatId, persona, scripted, `ai-${message.id}`);
-        await this.env.DB.prepare('UPDATE aiJobs SET status=? WHERE messageId=?')
-          .bind('complete', message.id)
-          .run();
-        await this.arm(chatId);
-        return;
-      }
       const pending = this.compose(chatId, persona, 'reply');
       await this.pause(readPause(persona.pace));
       const rawText = await pending;
@@ -557,10 +524,12 @@ export class ChatRoom extends DurableObject<Env> {
         return;
       }
       const raw = clipLines(rawText, persona);
-      if (!raw.length) raw.push(moveOn(persona));
-      for (let index = 0; index < raw.length; index++) {
-        if (sameText(raw[index], message.text)) raw[index] = copyCall(persona);
-        else if (isGreeting(raw[index]) && greeted) raw[index] = moveOn(persona);
+      if (!raw.length) {
+        await this.env.DB.prepare('UPDATE aiJobs SET status=? WHERE messageId=?')
+          .bind('complete', message.id)
+          .run();
+        await this.arm(chatId);
+        return;
       }
       const open = await this.env.DB.prepare(
         'SELECT id FROM chats WHERE id=? AND endedAt IS NULL',
@@ -591,29 +560,12 @@ export class ChatRoom extends DurableObject<Env> {
         .bind('complete', message.id)
         .run();
       await this.arm(chatId);
-    } catch (error) {
+    } catch {
       await this.env.DB.prepare(
         'UPDATE aiJobs SET status=?,error=? WHERE messageId=?',
       )
         .bind('failed', 'Reply failed', message.id)
         .run();
-      const limited = error instanceof ApiError && error.status === 429;
-      if (!limited && senderIdBox.id) {
-        try {
-          const row = await this.env.DB.prepare(
-            'SELECT aiPersona FROM chats WHERE id=? AND endedAt IS NULL',
-          )
-            .bind(chatId)
-            .first<{ aiPersona: string | null }>();
-          if (row)
-            await this.deliver(
-              chatId,
-              parsePersona(row.aiPersona),
-              moveOn(parsePersona(row.aiPersona)),
-              `ai-fallback-${message.id}`,
-            );
-        } catch {}
-      }
     } finally {
       await this.ctx.storage.delete('aiBusy');
       if (senderIdBox.id)
@@ -661,7 +613,20 @@ export class ChatRoom extends DurableObject<Env> {
         await this.endStranger(chatId, senderId);
         return;
       }
-      const line = cannedLine(persona, act === 'nudge' ? 'nudge' : 'open');
+      const rawText = await this.compose(
+        chatId,
+        persona,
+        act === 'nudge' ? 'nudge' : 'open',
+      );
+      if (/^\s*skip\s*$/i.test(rawText)) {
+        await this.endStranger(chatId, senderId);
+        return;
+      }
+      const line = clipLines(rawText, persona)[0];
+      if (!line) {
+        await this.endStranger(chatId, senderId);
+        return;
+      }
       await this.deliver(chatId, persona, line, `ai-${act}-${crypto.randomUUID()}`);
       await this.arm(chatId);
     } finally {
@@ -797,48 +762,6 @@ export class ChatRoom extends DurableObject<Env> {
   }
 }
 
-function sameText(a: string, b: string) {
-  const norm = (value: string) =>
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '')
-      .trim();
-  const left = norm(a);
-  const right = norm(b);
-  return left.length > 0 && left === right;
-}
-function isGreeting(text: string) {
-  return /^(h+i+|he+y+|hello+|yo+|sup+|hiya|heya|whatsup|wassup)$/.test(
-    text
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ''),
-  );
-}
-function copyCall(persona: RuntimePersona) {
-  const list =
-    persona.casing === 'lower'
-      ? ['lol why you copying me', 'bro stop', 'u just said that', 'lmao why']
-      : ['Lol why are you copying me', 'You just said that', 'Bro stop'];
-  return list[Math.floor(Math.random() * list.length)];
-}
-function moveOn(persona: RuntimePersona) {
-  const list =
-    persona.casing === 'lower'
-      ? ['nm u', 'wyd', 'u good', 'what u on', 'hows it going']
-      : ['Not much, you?', 'Wyd', 'You good', 'Hows it going'];
-  return list[Math.floor(Math.random() * list.length)];
-}
-function cannedLine(persona: RuntimePersona, action: 'open' | 'nudge') {
-  if (action === 'nudge') {
-    const list =
-      persona.casing === 'lower'
-        ? ['??', 'u there', 'hello', 'yo']
-        : ['??', 'You there', 'Hello?'];
-    return list[Math.floor(Math.random() * list.length)];
-  }
-  const list = persona.samples.length ? [persona.samples[0]] : ['hey'];
-  return list[0];
-}
 function nextSilence(persona: RuntimePersona, senders: string[]) {
   let trailing = 0;
   for (const id of senders) {
