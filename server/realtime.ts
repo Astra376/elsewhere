@@ -611,7 +611,7 @@ export class ChatRoom extends DurableObject<Env> {
         .run();
       this.broadcast({
         type: 'ai_error',
-        error: 'They didn\u2019t catch that. Try sending it again.',
+        error: 'They didn’t catch that. Try sending it again.',
       });
     } finally {
       this.broadcast({
