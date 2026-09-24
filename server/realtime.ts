@@ -512,7 +512,19 @@ export class ChatRoom extends DurableObject<Env> {
       senderIdBox.id = `ai:${persona.id}`;
       const pending = this.compose(chatId, persona, 'reply');
       await this.pause(readPause(persona.pace));
-      const raw = clipLines(await pending, persona);
+      const rawText = await pending;
+      if (/^\s*skip\s*$/i.test(rawText)) {
+        await this.env.DB.prepare('UPDATE aiJobs SET status=? WHERE messageId=?')
+          .bind('complete', message.id)
+          .run();
+        await this.ctx.storage.put('chatId', chatId);
+        await this.ctx.storage.put('nextAct', 'leave');
+        await this.ctx.storage.setAlarm(Date.now() + 2000 + Math.random() * 5000);
+        return;
+      }
+      const raw = clipLines(rawText, persona);
+      if (!raw.length)
+        raw.push(persona.casing === 'lower' ? pickReact() : 'Lol');
       const open = await this.env.DB.prepare(
         'SELECT id FROM chats WHERE id=? AND endedAt IS NULL',
       )
@@ -589,27 +601,16 @@ export class ChatRoom extends DurableObject<Env> {
         .bind(chatId)
         .first<{ senderId: string; createdAt: number }>();
       if (last && !last.senderId.startsWith('ai:')) return;
+      const act = (await this.ctx.storage.get<string>('nextAct')) || 'leave';
       const persona = parsePersona(chat.aiPersona);
       senderId = `ai:${persona.id}`;
-      const kind = last ? 'nudge' : 'open';
-      const lines = clipLines(
-        await this.compose(chatId, persona, kind),
-        persona,
-      );
-      if (!lines.length) return;
-      const still = await this.env.DB.prepare(
-        'SELECT endedAt FROM chats WHERE id=? AND endedAt IS NULL',
-      )
-        .bind(chatId)
-        .first();
-      if (!still) return;
-      for (const line of lines)
-        await this.deliver(
-          chatId,
-          persona,
-          line,
-          `ai-${kind}-${crypto.randomUUID()}`,
-        );
+      const trailing = await this.trailingAi(chatId);
+      if (act === 'leave' || trailing >= 2) {
+        await this.endStranger(chatId, senderId);
+        return;
+      }
+      const line = cannedLine(persona, act === 'nudge' ? 'nudge' : 'open');
+      await this.deliver(chatId, persona, line, `ai-${act}-${crypto.randomUUID()}`);
       await this.arm(chatId);
     } finally {
       await this.ctx.storage.delete('aiBusy');
@@ -629,17 +630,43 @@ export class ChatRoom extends DurableObject<Env> {
       return;
     }
     const persona = parsePersona(chat.aiPersona);
-    const last = await this.env.DB.prepare(
-      'SELECT senderId FROM messages WHERE chatId=? ORDER BY sequence DESC LIMIT 1',
+    const rows = await this.env.DB.prepare(
+      'SELECT senderId FROM messages WHERE chatId=? ORDER BY sequence DESC LIMIT 6',
     )
       .bind(chatId)
-      .first<{ senderId: string }>();
-    const gap = silenceGap(persona, last?.senderId);
-    if (gap == null) {
+      .all<{ senderId: string }>();
+    const plan = nextSilence(
+      persona,
+      rows.results.map((row) => row.senderId),
+    );
+    if (!plan) {
       await this.ctx.storage.deleteAlarm();
       return;
     }
-    await this.ctx.storage.setAlarm(Date.now() + gap);
+    await this.ctx.storage.put('nextAct', plan.action);
+    await this.ctx.storage.setAlarm(Date.now() + plan.wait);
+  }
+  async trailingAi(chatId: string) {
+    const rows = await this.env.DB.prepare(
+      'SELECT senderId FROM messages WHERE chatId=? ORDER BY sequence DESC LIMIT 6',
+    )
+      .bind(chatId)
+      .all<{ senderId: string }>();
+    let count = 0;
+    for (const row of rows.results) {
+      if (!row.senderId.startsWith('ai:')) break;
+      count++;
+    }
+    return count;
+  }
+  async endStranger(chatId: string, senderId: string) {
+    await this.env.DB.prepare(
+      'UPDATE chats SET endedAt=COALESCE(endedAt,?) WHERE id=?',
+    )
+      .bind(Date.now(), chatId)
+      .run();
+    await this.ctx.storage.deleteAlarm();
+    this.broadcast({ type: 'left', profileId: senderId, ended: true });
   }
   async compose(
     chatId: string,
@@ -660,7 +687,7 @@ export class ChatRoom extends DurableObject<Env> {
         'X-Title': 'ChatUp',
       },
       body: JSON.stringify({
-        model: this.env.OPENROUTER_MODEL || 'openai/gpt-4.1-mini',
+        model: this.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4.1-flash',
         messages: [
           { role: 'system', content: personaPrompt(persona, kind) },
           ...history.results.reverse().map((row) => ({
@@ -669,10 +696,11 @@ export class ChatRoom extends DurableObject<Env> {
           })),
           ...(history.results.length
             ? []
-            : [{ role: 'user', content: 'You just matched. Say something first if you would.' }]),
+            : [{ role: 'user', content: 'matched' }]),
         ],
-        max_tokens: 40,
-        temperature: persona.initiative === 'forward' ? 1.05 : 0.95,
+        max_tokens: 32,
+        temperature: 1.05,
+        reasoning: { enabled: false },
         provider: { data_collection: 'deny' },
       }),
       signal: AbortSignal.timeout(12000),
@@ -681,7 +709,9 @@ export class ChatRoom extends DurableObject<Env> {
     const body = (await response.json()) as {
       choices?: { message?: { content?: string } }[];
     };
-    return body.choices?.[0]?.message?.content?.trim() ?? '';
+    return (body.choices?.[0]?.message?.content ?? '')
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .trim();
   }
   async deliver(
     chatId: string,
@@ -708,6 +738,60 @@ export class ChatRoom extends DurableObject<Env> {
   }
 }
 
+function pickReact() {
+  const list = ['lol', 'oh', 'mhm', 'wait', 'k', 'same', 'fr'];
+  return list[Math.floor(Math.random() * list.length)];
+}
+function cannedLine(persona: RuntimePersona, action: 'open' | 'nudge') {
+  if (action === 'nudge') {
+    const list =
+      persona.casing === 'lower'
+        ? ['??', 'u there', 'hello', 'yo']
+        : ['??', 'You there', 'Hello?'];
+    return list[Math.floor(Math.random() * list.length)];
+  }
+  const list = persona.samples.length ? persona.samples.slice(0, 3) : ['hey'];
+  return list[Math.floor(Math.random() * list.length)];
+}
+function nextSilence(persona: RuntimePersona, senders: string[]) {
+  let trailing = 0;
+  for (const id of senders) {
+    if (!id.startsWith('ai:')) break;
+    trailing++;
+  }
+  const last = senders[0];
+  if (last && !last.startsWith('ai:')) return null;
+  if (trailing === 0) {
+    if (persona.skips === 'fast' && Math.random() < 0.4)
+      return { wait: 6000 + Math.random() * 9000, action: 'leave' as const };
+    if (persona.initiative === 'quiet' && Math.random() < 0.4)
+      return { wait: 12000 + Math.random() * 14000, action: 'leave' as const };
+    const wait =
+      persona.pace === 'fast'
+        ? 500 + Math.random() * 1400
+        : persona.pace === 'slow'
+          ? 2200 + Math.random() * 3000
+          : 900 + Math.random() * 2000;
+    return { wait, action: 'open' as const };
+  }
+  if (trailing >= 2)
+    return { wait: 6000 + Math.random() * 10000, action: 'leave' as const };
+  if (persona.skips === 'fast')
+    return { wait: 10000 + Math.random() * 12000, action: 'leave' as const };
+  if (persona.skips === 'stays')
+    return { wait: 20000 + Math.random() * 25000, action: 'leave' as const };
+  if (Math.random() < 0.45)
+    return { wait: 8000 + Math.random() * 10000, action: 'nudge' as const };
+  return { wait: 12000 + Math.random() * 14000, action: 'leave' as const };
+}
+function arriveDelay() {
+  const roll = Math.random();
+  if (roll < 0.22) return 0;
+  if (roll < 0.55) return 800 + Math.random() * 2500;
+  if (roll < 0.82) return 4000 + Math.random() * 6000;
+  return 11000 + Math.random() * 14000;
+}
+
 function clipLines(raw: string, persona: RuntimePersona) {
   const max = persona.initiative === 'forward' ? 2 : 1;
   return raw
@@ -715,45 +799,6 @@ function clipLines(raw: string, persona: RuntimePersona) {
     .map((line) => clipChatLine(line, persona))
     .filter(Boolean)
     .slice(0, max);
-}
-function silenceGap(persona: RuntimePersona, lastSender?: string) {
-  if (lastSender && !lastSender.startsWith('ai:')) return null;
-  if (!lastSender) {
-    const chance =
-      persona.initiative === 'forward'
-        ? 0.82
-        : persona.initiative === 'balanced'
-          ? 0.5
-          : 0.22;
-    if (Math.random() > chance) return null;
-    const base =
-      persona.patience === 'impatient'
-        ? 800
-        : persona.patience === 'slow'
-          ? 3200
-          : 1600;
-    return base + Math.random() * 1600;
-  }
-  const chance =
-    (persona.patience === 'impatient'
-      ? 0.72
-      : persona.patience === 'slow'
-        ? 0.22
-        : 0.42) + (persona.initiative === 'forward' ? 0.12 : persona.initiative === 'quiet' ? -0.1 : 0);
-  if (Math.random() > chance) return null;
-  const base =
-    persona.patience === 'impatient'
-      ? 4500
-      : persona.patience === 'slow'
-        ? 20000
-        : 11000;
-  const spread =
-    persona.patience === 'impatient'
-      ? 3500
-      : persona.patience === 'slow'
-        ? 12000
-        : 7000;
-  return base + Math.random() * spread;
 }
 
 type QueueRow = {
@@ -893,15 +938,16 @@ export class Matchmaker extends DurableObject<Env> {
           );
         if (options.mode !== 'text' && options.partnerType === 'ai')
           throw new ApiError(400, 'Text is required for that match.');
+        const queued = { ...options, botAfter: now + arriveDelay() };
         await this.env.DB.prepare(
           'INSERT INTO matchQueue (profileId,mode,options,joinedAt,heartbeatAt,chatId) VALUES (?,?,?,?,?,NULL) ON CONFLICT(profileId) DO UPDATE SET mode=excluded.mode,options=excluded.options,joinedAt=excluded.joinedAt,heartbeatAt=excluded.heartbeatAt,chatId=NULL',
         )
-          .bind(profile.id, options.mode, JSON.stringify(options), now, now)
+          .bind(profile.id, options.mode, JSON.stringify(queued), now, now)
           .run();
         own = {
           profileId: profile.id,
           mode: options.mode,
-          options: JSON.stringify(options),
+          options: JSON.stringify(queued),
           joinedAt: now,
           heartbeatAt: now,
           chatId: null,
@@ -914,7 +960,9 @@ export class Matchmaker extends DurableObject<Env> {
       )
         .bind(now, profile.id)
         .run();
-      const options = matchSchema.parse(JSON.parse(own.options));
+      const rawOptions = JSON.parse(own.options) as { botAfter?: number };
+      const options = matchSchema.parse(rawOptions);
+      const botAfter = Number(rawOptions.botAfter);
       // Filter eligibility before limiting the result. A fixed prefix of the
       // queue can indefinitely hide compatible people with uncommon interests.
       let candidate: QueueRow | null = null;
@@ -974,11 +1022,11 @@ export class Matchmaker extends DurableObject<Env> {
             !sharedInterests(persona.interests, options.interests).length)
         )
           persona = generatePersona(options.interests);
-        const waitMs = 1200;
+        const waitMs = Number.isFinite(botAfter) ? botAfter : own.joinedAt;
         const aiAllowed =
           options.mode === 'text' &&
           !!this.env.OPENROUTER_API_KEY &&
-          (options.partnerType === 'ai' || now - own.joinedAt >= waitMs) &&
+          (options.partnerType === 'ai' || now >= waitMs) &&
           (!interestsRequired(options, own.joinedAt, now) ||
             sharedInterests(persona.interests, options.interests).length > 0);
         if (!aiAllowed)
@@ -1026,7 +1074,7 @@ export class Matchmaker extends DurableObject<Env> {
     }
   }
   async familiarPersona(profileId: string, now: number) {
-    if (Math.random() > 0.35) return null;
+    if (Math.random() > 0.08) return null;
     const rows = await this.env.DB.prepare(
       `SELECT c.aiPersona AS aiPersona FROM chats c
        JOIN members m ON m.chatId=c.id
@@ -1036,7 +1084,7 @@ export class Matchmaker extends DurableObject<Env> {
       .bind(profileId, now - 12 * 60 * 60 * 1000)
       .all<{ aiPersona: string }>();
     const people = rows.results.map((row) => parsePersona(row.aiPersona));
-    if (!people.length) return null;
-    return people[Math.floor(Math.random() * people.length)];
+    if (people.length < 2) return null;
+    return people[1 + Math.floor(Math.random() * (people.length - 1))];
   }
 }

@@ -494,7 +494,7 @@ export function ChatApp() {
         pending = false;
       }
     };
-    const timer = setInterval(check, 2500),
+    const timer = setInterval(check, 800),
       clock = setInterval(
         () => setElapsed(Math.floor((Date.now() - queue.joinedAt) / 1000)),
         1000,

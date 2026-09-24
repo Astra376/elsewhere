@@ -12,7 +12,7 @@
     "APP_ORIGIN": "https://chatup.chat",
     "API_ORIGIN": "https://elsewhere-api.robloxproxy.workers.dev",
     "CLOUDFLARE_ACCOUNT_ID": "6418d8b7a0996630c6eb574d93c85b54",
-    "OPENROUTER_MODEL": "openai/gpt-4.1-mini",
+    "OPENROUTER_MODEL": "deepseek/deepseek-v4.1-flash",
     "REALTIME_APP_ID": "7e36c220-4fd1-4d19-b1d6-6e832edba25e",
   },
   "d1_databases": [
