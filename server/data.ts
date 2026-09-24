@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import {
   defaultPreferences,
+  parsePersona,
   plans,
   type Profile,
   type Peer,
@@ -158,6 +159,25 @@ export async function conversation(
       profileId,
     )
     .all<RowProfile>();
+  if (chat.kind === 'ai') {
+    const persona = parsePersona(chat.aiPersona);
+    return {
+      ...chat,
+      kind: 'match',
+      title: 'A new connection',
+      aiPersona: undefined,
+      peers: [
+        {
+          id: `ai:${persona.id}`,
+          username: persona.name,
+          avatar: persona.avatar,
+          interests: persona.interests,
+          plan: 'free',
+          online: true,
+        },
+      ],
+    };
+  }
   return { ...chat, peers: peers.results.map(publicPeer) };
 }
 export async function notify(
