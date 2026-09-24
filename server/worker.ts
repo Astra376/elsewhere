@@ -17,9 +17,9 @@ import {
   type RowProfile,
 } from './data';
 import {
-  aiPersonas,
   defaultPreferences,
   normalizeInterests,
+  parsePersona,
   plans,
   profileSchema,
   POLICY_VERSION,
@@ -651,26 +651,8 @@ export default {
             (['messages', 'games'].includes(action) && request.method === 'GET')
           ),
         );
-        if (!action && request.method === 'GET') {
-          const detail = await conversation(env, chatId, profile.id);
-          if (chat.kind === 'ai') {
-            const persona = aiPersonas.find((p) => p.id === chat.aiPersona)!;
-            detail.kind = 'match';
-            detail.title = 'A new connection';
-            detail.aiPersona = undefined;
-            detail.peers = [
-              {
-                id: `ai:${persona.id}`,
-                username: persona.name,
-                avatar: persona.avatar,
-                interests: [...persona.interests],
-                plan: 'free',
-                online: true,
-              },
-            ];
-          }
-          return json(detail);
-        }
+        if (!action && request.method === 'GET')
+          return json(await conversation(env, chatId, profile.id));
         if (action === 'messages' && request.method === 'GET') {
           const after = Math.max(
             0,
@@ -681,8 +663,14 @@ export default {
           )
             .bind('Someone', chatId, after, profile.id, profile.id)
             .all<ChatMessage>();
+          const persona =
+            chat.kind === 'ai' ? parsePersona(chat.aiPersona) : null;
           return json({
-            messages: rows.results,
+            messages: rows.results.map((message) =>
+              persona && message.senderId.startsWith('ai:')
+                ? { ...message, senderName: persona.name }
+                : message,
+            ),
             hasMore: rows.results.length === 100,
           });
         }
