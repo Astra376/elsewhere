@@ -601,11 +601,13 @@ export class ChatRoom extends DurableObject<Env> {
         .bind(chatId)
         .first<{ senderId: string; createdAt: number }>();
       if (last && !last.senderId.startsWith('ai:')) return;
-      const act = (await this.ctx.storage.get<string>('nextAct')) || 'leave';
+      const trailing = await this.trailingAi(chatId);
+      const stored = await this.ctx.storage.get<string>('nextAct');
+      const act =
+        trailing === 0 ? 'open' : stored === 'nudge' ? 'nudge' : 'leave';
       const persona = parsePersona(chat.aiPersona);
       senderId = `ai:${persona.id}`;
-      const trailing = await this.trailingAi(chatId);
-      if (act === 'leave' || trailing >= 2) {
+      if (act === 'leave') {
         await this.endStranger(chatId, senderId);
         return;
       }
@@ -660,11 +662,13 @@ export class ChatRoom extends DurableObject<Env> {
     return count;
   }
   async endStranger(chatId: string, senderId: string) {
-    await this.env.DB.prepare(
-      'UPDATE chats SET endedAt=COALESCE(endedAt,?) WHERE id=?',
-    )
-      .bind(Date.now(), chatId)
-      .run();
+    const now = Date.now();
+    await this.env.DB.batch([
+      this.env.DB.prepare(
+        'UPDATE chats SET endedAt=COALESCE(endedAt,?) WHERE id=?',
+      ).bind(now, chatId),
+      this.env.DB.prepare('DELETE FROM matchQueue WHERE chatId=?').bind(chatId),
+    ]);
     await this.ctx.storage.deleteAlarm();
     this.broadcast({ type: 'left', profileId: senderId, ended: true });
   }
@@ -750,8 +754,8 @@ function cannedLine(persona: RuntimePersona, action: 'open' | 'nudge') {
         : ['??', 'You there', 'Hello?'];
     return list[Math.floor(Math.random() * list.length)];
   }
-  const list = persona.samples.length ? persona.samples.slice(0, 3) : ['hey'];
-  return list[Math.floor(Math.random() * list.length)];
+  const list = persona.samples.length ? [persona.samples[0]] : ['hey'];
+  return list[0];
 }
 function nextSilence(persona: RuntimePersona, senders: string[]) {
   let trailing = 0;
@@ -762,16 +766,12 @@ function nextSilence(persona: RuntimePersona, senders: string[]) {
   const last = senders[0];
   if (last && !last.startsWith('ai:')) return null;
   if (trailing === 0) {
-    if (persona.skips === 'fast' && Math.random() < 0.4)
-      return { wait: 6000 + Math.random() * 9000, action: 'leave' as const };
-    if (persona.initiative === 'quiet' && Math.random() < 0.4)
-      return { wait: 12000 + Math.random() * 14000, action: 'leave' as const };
     const wait =
       persona.pace === 'fast'
-        ? 500 + Math.random() * 1400
+        ? 600 + Math.random() * 1200
         : persona.pace === 'slow'
-          ? 2200 + Math.random() * 3000
-          : 900 + Math.random() * 2000;
+          ? 1800 + Math.random() * 2200
+          : 900 + Math.random() * 1600;
     return { wait, action: 'open' as const };
   }
   if (trailing >= 2)
@@ -786,10 +786,9 @@ function nextSilence(persona: RuntimePersona, senders: string[]) {
 }
 function arriveDelay() {
   const roll = Math.random();
-  if (roll < 0.22) return 0;
-  if (roll < 0.55) return 800 + Math.random() * 2500;
-  if (roll < 0.82) return 4000 + Math.random() * 6000;
-  return 11000 + Math.random() * 14000;
+  if (roll < 0.3) return 500 + Math.random() * 900;
+  if (roll < 0.75) return 1500 + Math.random() * 2500;
+  return 4000 + Math.random() * 4000;
 }
 
 function clipLines(raw: string, persona: RuntimePersona) {
@@ -867,6 +866,19 @@ export class Matchmaker extends DurableObject<Env> {
           403,
           'Matching is unavailable for your account standing.',
         );
+      }
+      if (own?.chatId) {
+        const live = await this.env.DB.prepare(
+          'SELECT endedAt FROM chats WHERE id=?',
+        )
+          .bind(own.chatId)
+          .first<{ endedAt: number | null }>();
+        if (!live || live.endedAt) {
+          await this.env.DB.prepare('DELETE FROM matchQueue WHERE profileId=?')
+            .bind(profile.id)
+            .run();
+          own = null;
+        }
       }
       if (body.action === 'join') {
         if (!profile.acceptedAt)

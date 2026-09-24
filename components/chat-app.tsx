@@ -247,6 +247,7 @@ export function ChatApp() {
       if (event.type === 'left' && event.ended) {
         setChat((prev) => (prev ? { ...prev, endedAt: Date.now() } : null));
         setCallOpen(false);
+        sessionStorage.removeItem('elsewhere-active-chat');
         flash('This conversation has ended. A new hello is one tap away.');
       }
       if (event.type === 'game' && event.game) {
@@ -394,18 +395,6 @@ export function ChatApp() {
           interestMatch: incoming.length > 0,
         });
         applyTheme(preferredDark());
-        const active =
-          params.get('conversation') ??
-          sessionStorage.getItem('elsewhere-active-chat');
-        if (
-          active &&
-          (!params.has('view') || params.get('view') === 'chat') &&
-          !params.has('plan') &&
-          !params.has('auth')
-        )
-          await openChat(active).catch(() =>
-            sessionStorage.removeItem('elsewhere-active-chat'),
-          );
       } catch (error) {
         if (mounted.current) setBootError(errorText(error));
       }
@@ -519,7 +508,9 @@ export function ChatApp() {
     setBusy(true);
     try {
       if (leaving.current) await leaving.current;
+      sessionStorage.removeItem('elsewhere-active-chat');
       if (chat && !chat.endedAt) await leaveChat();
+      else if (chat?.endedAt) setChat(null);
       if (options.nearMe && !options.location) {
         flash(
           'Choose a city or allow location access in matching preferences.',
