@@ -10,7 +10,7 @@ import {
   parsePersona,
   personaPrompt,
   plans,
-  readPause,
+  replyDelay,
   sharedInterests,
   typingHold,
   isJunkLine,
@@ -479,12 +479,15 @@ export class ChatRoom extends DurableObject<Env> {
     try {
       ws.close(code, reason);
     } catch {}
-    if (!this.ctx.getWebSockets(state.profileId).filter((s) => s !== ws).length)
+    if (!this.ctx.getWebSockets(state.profileId).filter((s) => s !== ws).length) {
       this.broadcast({
         type: 'presence',
         profileId: state.profileId,
         online: false,
       });
+      if (!this.ctx.getWebSockets().length)
+        this.ctx.waitUntil(this.noteGone(state.chatId));
+    }
   }
   webSocketError(ws: WebSocket) {
     try {
@@ -510,16 +513,16 @@ export class ChatRoom extends DurableObject<Env> {
       if (!claim) return;
       let persona = parsePersona(active.aiPersona);
       senderIdBox.id = `ai:${persona.id}`;
-      const pending = this.compose(chatId, persona, 'reply');
-      await this.pause(readPause(persona.pace));
-      const rawText = await pending;
+      const rawText = await this.compose(chatId, persona, 'reply');
       if (/^\s*skip\s*$/i.test(rawText)) {
         await this.env.DB.prepare('UPDATE aiJobs SET status=? WHERE messageId=?')
           .bind('complete', message.id)
           .run();
         await this.ctx.storage.put('chatId', chatId);
         await this.ctx.storage.put('nextAct', 'leave');
-        await this.ctx.storage.setAlarm(Date.now() + 2000 + Math.random() * 5000);
+        await this.ctx.storage.setAlarm(
+          Date.now() + replyDelay(persona, message.text.length),
+        );
         return;
       }
       const raw = clipLines(rawText, persona);
@@ -530,6 +533,7 @@ export class ChatRoom extends DurableObject<Env> {
         await this.arm(chatId);
         return;
       }
+      await this.pause(replyDelay(persona, message.text.length));
       const open = await this.env.DB.prepare(
         'SELECT id FROM chats WHERE id=? AND endedAt IS NULL',
       )
@@ -596,6 +600,16 @@ export class ChatRoom extends DurableObject<Env> {
           kind: string;
         }>();
       if (!chat || chat.kind !== 'ai' || chat.endedAt) return;
+      const stored = (await this.ctx.storage.get<string>('nextAct')) || '';
+      if (stored === 'gone') {
+        if (this.ctx.getWebSockets().length) {
+          await this.arm(chatId);
+          return;
+        }
+        const persona = parsePersona(chat.aiPersona);
+        await this.endStranger(chatId, `ai:${persona.id}`);
+        return;
+      }
       const last = await this.env.DB.prepare(
         'SELECT senderId, createdAt FROM messages WHERE chatId=? ORDER BY sequence DESC LIMIT 1',
       )
@@ -603,7 +617,6 @@ export class ChatRoom extends DurableObject<Env> {
         .first<{ senderId: string; createdAt: number }>();
       if (last && !last.senderId.startsWith('ai:')) return;
       const trailing = await this.trailingAi(chatId);
-      const stored = await this.ctx.storage.get<string>('nextAct');
       const act =
         trailing === 0 ? 'open' : stored === 'nudge' ? 'nudge' : 'leave';
       const persona = parsePersona(chat.aiPersona);
@@ -633,6 +646,18 @@ export class ChatRoom extends DurableObject<Env> {
       if (senderId)
         this.broadcast({ type: 'typing', profileId: senderId, typing: false });
     }
+  }
+  async noteGone(chatId: string) {
+    const chat = await this.env.DB.prepare(
+      'SELECT kind, endedAt FROM chats WHERE id=?',
+    )
+      .bind(chatId)
+      .first<{ kind: string; endedAt: number | null }>();
+    if (!chat || chat.kind !== 'ai' || chat.endedAt) return;
+    if (this.ctx.getWebSockets().length) return;
+    await this.ctx.storage.put('chatId', chatId);
+    await this.ctx.storage.put('nextAct', 'gone');
+    await this.ctx.storage.setAlarm(Date.now() + 8000 + Math.random() * 14000);
   }
   async arm(chatId: string) {
     await this.ctx.storage.put('chatId', chatId);
@@ -778,6 +803,8 @@ function nextSilence(persona: RuntimePersona, senders: string[]) {
           : 900 + Math.random() * 1600;
     return { wait, action: 'open' as const };
   }
+  if (persona.engagement < 35)
+    return { wait: 5000 + Math.random() * 8000, action: 'leave' as const };
   if (trailing >= 2)
     return { wait: 6000 + Math.random() * 10000, action: 'leave' as const };
   if (persona.skips === 'fast')
@@ -796,7 +823,7 @@ function arriveDelay() {
 }
 
 function clipLines(raw: string, persona: RuntimePersona) {
-  const max = persona.initiative === 'forward' ? 2 : 1;
+  const max = persona.initiative === 'quiet' ? 1 : 2;
   return raw
     .split('\n')
     .map((line) => clipChatLine(line, persona))

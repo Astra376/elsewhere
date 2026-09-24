@@ -347,7 +347,6 @@ export function ChatApp() {
       setShowGame(false);
       setCallOpen(false);
       navigate('chat');
-      sessionStorage.setItem('elsewhere-active-chat', id);
       api<Game | null>(`/chats/${encodeURIComponent(id)}/games`)
         .then(setGame)
         .catch(() => {});
@@ -395,6 +394,7 @@ export function ChatApp() {
           interestMatch: incoming.length > 0,
         });
         applyTheme(preferredDark());
+        sessionStorage.removeItem('elsewhere-active-chat');
       } catch (error) {
         if (mounted.current) setBootError(errorText(error));
       }
@@ -407,6 +407,33 @@ export function ChatApp() {
       clearTimeout(toastTimeout.current);
     };
   }, [openChat, updateProfile]);
+  useEffect(() => {
+    if (!chat?.id || chat.endedAt) return;
+    if (chat.kind !== 'ai' && chat.kind !== 'match') return;
+    const id = chat.id;
+    const drop = () => {
+      sessionStorage.removeItem('elsewhere-active-chat');
+      void fetch(`/api/chats/${encodeURIComponent(id)}/leave`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }).catch(() => {});
+    };
+    const back = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      sessionStorage.removeItem('elsewhere-active-chat');
+      setChat(null);
+      setQueue(null);
+    };
+    window.addEventListener('pagehide', drop);
+    window.addEventListener('pageshow', back);
+    return () => {
+      window.removeEventListener('pagehide', drop);
+      window.removeEventListener('pageshow', back);
+    };
+  }, [chat?.id, chat?.endedAt, chat?.kind]);
   useEffect(() => {
     if (!profile?.id) return;
     let alive = true;
