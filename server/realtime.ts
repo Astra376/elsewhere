@@ -508,7 +508,6 @@ export class ChatRoom extends DurableObject<Env> {
         .bind(message.id, chatId, 'running', Date.now())
         .first();
       if (!claim) return;
-      await limit(this.env, `ai:${message.senderId}`, 300, 3600);
       let persona = parsePersona(active.aiPersona);
       senderIdBox.id = `ai:${persona.id}`;
       const pending = this.compose(chatId, persona, 'reply');
