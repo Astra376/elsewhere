@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   annualPrice,
   autoEmoji,
+  chatLines,
+  clipChatLine,
   gameWinner,
+  generatePersona,
   interestsRequired,
   matchSchema,
   normalizeInterests,
@@ -10,6 +13,7 @@ import {
   playMove,
   profileSchema,
   sharedInterests,
+  shortBursts,
   type Game,
 } from '../lib/domain';
 import { detectMedia } from '../server/media';
@@ -148,6 +152,23 @@ describe('authoritative games', () => {
     expect(() => playMove({ ...game(), winner: 'a' }, 'a', 1, 0)).toThrow(
       'finished',
     ));
+});
+describe('stranger texts', () => {
+  const persona = generatePersona();
+  it('keeps a finished text whole', () =>
+    expect(clipChatLine('oh nice what are you up to', persona)).toBe(
+      'oh nice what are you up to',
+    ));
+  it('does not split a sentence on and', () =>
+    expect(shortBursts('i am home and eating')).toEqual([
+      'i am home and eating',
+    ]));
+  it('sends separate short texts and only one greeting', () =>
+    expect(
+      chatLines('heyy\nwyd\nhey', { ...persona, initiative: 'forward' }),
+    ).toEqual(['heyy', 'wyd']));
+  it('drops a comment about looks', () =>
+    expect(clipChatLine('you look nice', persona)).toBe(''));
 });
 describe('untrusted uploads and push endpoints', () => {
   it('rejects SVG, HTML, and arbitrary bytes regardless of claimed MIME type', () => {

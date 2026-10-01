@@ -3,6 +3,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { z } from 'zod';
 import {
   clipChatLine,
+  chatLines,
   driftPersona,
   generatePersona,
   interestsRequired,
@@ -12,7 +13,6 @@ import {
   plans,
   replyDelay,
   sharedInterests,
-  shortBursts,
   typingHold,
   isJunkLine,
   isGreeting,
@@ -516,7 +516,14 @@ export class ChatRoom extends DurableObject<Env> {
       if (!claim) return;
       let persona = parsePersona(active.aiPersona);
       senderIdBox.id = `ai:${persona.id}`;
-      const rawText = await this.compose(chatId, persona, 'reply');
+      let rawText = await this.compose(chatId, persona, 'reply');
+      const newer = await this.env.DB.prepare(
+        'SELECT id FROM messages WHERE chatId=? AND senderId NOT LIKE ? ORDER BY sequence DESC LIMIT 1',
+      )
+        .bind(chatId, 'ai:%')
+        .first<{ id: string }>();
+      if (newer && newer.id !== message.id)
+        rawText = await this.compose(chatId, persona, 'reply');
       if (/^\s*skip\s*$/i.test(rawText)) {
         await this.env.DB.prepare('UPDATE aiJobs SET status=? WHERE messageId=?')
           .bind('complete', message.id)
@@ -553,7 +560,7 @@ export class ChatRoom extends DurableObject<Env> {
           chatId,
           persona,
           raw[index],
-          index === 0 ? `ai-${message.id}` : `ai-${message.id}-b`,
+          index === 0 ? `ai-${message.id}` : `ai-${message.id}-${index}`,
         );
       }
       if (raw.length) {
@@ -760,9 +767,9 @@ export class ChatRoom extends DurableObject<Env> {
           }),
           ...(history.results.length
             ? []
-            : [{ role: 'user', content: 'matched' }]),
+            : [{ role: 'user', content: '(nobody has typed yet)' }]),
         ],
-        max_tokens: 36,
+        max_tokens: 120,
         temperature: 0.9,
         reasoning: { enabled: false, effort: 'none' },
         provider: { data_collection: 'deny' },
@@ -770,12 +777,19 @@ export class ChatRoom extends DurableObject<Env> {
       signal: AbortSignal.timeout(12000),
     });
     if (!response.ok) throw new Error(`Provider returned ${response.status}`);
-    const body = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    return (body.choices?.[0]?.message?.content ?? '')
+    const choice = (
+      (await response.json()) as {
+        choices?: { finish_reason?: string; message?: { content?: string } }[];
+      }
+    ).choices?.[0];
+    let text = (choice?.message?.content ?? '')
       .replace(/<think>[\s\S]*?(<\/think>|$)/gi, '')
       .trim();
+    if (choice?.finish_reason === 'length') {
+      const lines = text.split('\n');
+      text = lines.length > 1 ? lines.slice(0, -1).join('\n').trim() : '';
+    }
+    return text;
   }
   async deliver(
     chatId: string,
@@ -859,22 +873,7 @@ function arriveDelay() {
 }
 
 function clipLines(raw: string, persona: RuntimePersona) {
-  const max =
-    persona.initiative === 'quiet' ? 1 : persona.initiative === 'forward' ? 3 : 2;
-  const out: string[] = [];
-  let greeted = false;
-  for (const chunk of shortBursts(raw)) {
-    const line = clipChatLine(chunk, persona);
-    if (!line || line.split(/\s+/).length > 8) continue;
-    if (isGreeting(line)) {
-      if (greeted) continue;
-      greeted = true;
-    }
-    if (out.some((item) => item === line)) continue;
-    out.push(line);
-    if (out.length >= max) break;
-  }
-  return out;
+  return chatLines(raw, persona);
 }
 
 type QueueRow = {
