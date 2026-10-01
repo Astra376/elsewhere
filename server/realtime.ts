@@ -12,8 +12,10 @@ import {
   plans,
   replyDelay,
   sharedInterests,
+  shortBursts,
   typingHold,
   isJunkLine,
+  isGreeting,
   playMove,
   type MatchOptions,
   type RuntimePersona,
@@ -49,6 +51,7 @@ export class ChatRoom extends DurableObject<Env> {
   private tail: Promise<unknown> = Promise.resolve();
   private aiTail: Promise<unknown> = Promise.resolve();
   private callTail: Promise<unknown> = Promise.resolve();
+  private aiOut = new Set<string>();
   fetch(request: Request) {
     // Provider setup is serialized separately so slow media services cannot
     // hold up persisted text messages or leaving the conversation.
@@ -635,7 +638,12 @@ export class ChatRoom extends DurableObject<Env> {
         return;
       }
       const line = clipLines(rawText, persona)[0];
-      if (!line) {
+      if (!line || (act === 'nudge' && isGreeting(line))) {
+        if (act === 'nudge') {
+          await this.ctx.storage.put('nextAct', 'leave');
+          await this.ctx.storage.setAlarm(Date.now() + 4000 + Math.random() * 6000);
+          return;
+        }
         await this.endStranger(chatId, senderId);
         return;
       }
@@ -754,7 +762,7 @@ export class ChatRoom extends DurableObject<Env> {
             ? []
             : [{ role: 'user', content: 'matched' }]),
         ],
-        max_tokens: 48,
+        max_tokens: 36,
         temperature: 0.9,
         reasoning: { enabled: false, effort: 'none' },
         provider: { data_collection: 'deny' },
@@ -775,19 +783,39 @@ export class ChatRoom extends DurableObject<Env> {
     text: string,
     id: string,
   ) {
+    const key = text.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const greet = isGreeting(text);
+    if (!key || this.aiOut.has(key) || (greet && this.aiOut.has('greet')))
+      return;
+    this.aiOut.add(key);
+    if (greet) this.aiOut.add('greet');
     const senderId = `ai:${persona.id}`;
-    this.broadcast({ type: 'typing', profileId: senderId, typing: true });
-    await this.pause(typingHold(persona.pace, text.length));
-    const saved = await this.env.DB.prepare(
-      'INSERT INTO messages (id,chatId,senderId,text,kind,createdAt) VALUES (?,?,?,?,?,?) RETURNING *',
-    )
-      .bind(id, chatId, senderId, text, 'text', Date.now())
-      .first<ChatMessage>();
-    this.broadcast({
-      type: 'message',
-      message: { ...saved, senderName: persona.name },
-    });
-    this.broadcast({ type: 'typing', profileId: senderId, typing: false });
+    try {
+      this.broadcast({ type: 'typing', profileId: senderId, typing: true });
+      await this.pause(typingHold(persona.pace, text.length));
+      const prior = await this.env.DB.prepare(
+        'SELECT text FROM messages WHERE chatId=? AND senderId=? ORDER BY sequence DESC LIMIT 6',
+      )
+        .bind(chatId, senderId)
+        .all<{ text: string }>();
+      const seen = prior.results.map((row) => row.text);
+      if (seen.some((row) => row.toLowerCase().replace(/[^a-z0-9]+/g, '') === key))
+        return;
+      if (greet && seen.some((row) => isGreeting(row))) return;
+      const saved = await this.env.DB.prepare(
+        'INSERT INTO messages (id,chatId,senderId,text,kind,createdAt) VALUES (?,?,?,?,?,?) RETURNING *',
+      )
+        .bind(id, chatId, senderId, text, 'text', Date.now())
+        .first<ChatMessage>();
+      this.broadcast({
+        type: 'message',
+        message: { ...saved, senderName: persona.name },
+      });
+    } finally {
+      this.aiOut.delete(key);
+      if (greet) this.aiOut.delete('greet');
+      this.broadcast({ type: 'typing', profileId: senderId, typing: false });
+    }
   }
   pause(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -831,12 +859,22 @@ function arriveDelay() {
 }
 
 function clipLines(raw: string, persona: RuntimePersona) {
-  const max = persona.initiative === 'quiet' ? 1 : 2;
-  return raw
-    .split('\n')
-    .map((line) => clipChatLine(line, persona))
-    .filter(Boolean)
-    .slice(0, max);
+  const max =
+    persona.initiative === 'quiet' ? 1 : persona.initiative === 'forward' ? 3 : 2;
+  const out: string[] = [];
+  let greeted = false;
+  for (const chunk of shortBursts(raw)) {
+    const line = clipChatLine(chunk, persona);
+    if (!line || line.split(/\s+/).length > 8) continue;
+    if (isGreeting(line)) {
+      if (greeted) continue;
+      greeted = true;
+    }
+    if (out.some((item) => item === line)) continue;
+    out.push(line);
+    if (out.length >= max) break;
+  }
+  return out;
 }
 
 type QueueRow = {
